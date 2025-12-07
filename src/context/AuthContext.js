@@ -47,10 +47,11 @@ export const AuthProvider = ({ children }) => {
               userData.permissions = getUserPermissions(userData);
               setUser(userData);
             } else {
-              // User doc doesn't exist, use Firebase user only
-              const userData = { ...firebaseUser };
-              userData.permissions = getUserPermissions(userData);
-              setUser(userData);
+              // User doc doesn't exist in Firestore, sign out immediately
+              console.warn("User document not found in Firestore, signing out...");
+              signOut().then(() => {
+                setUser(null);
+              });
             }
             setLoading(false);
           },
@@ -70,9 +71,11 @@ export const AuthProvider = ({ children }) => {
                 userData.permissions = getUserPermissions(userData);
                 setUser(userData);
               } else {
-                const userData = { ...firebaseUser };
-                userData.permissions = getUserPermissions(userData);
-                setUser(userData);
+                // User doc doesn't exist in Firestore, sign out immediately
+                console.warn("User document not found in Firestore, signing out...");
+                signOut().then(() => {
+                  setUser(null);
+                });
               }
               setLoading(false);
             });

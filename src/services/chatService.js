@@ -182,7 +182,11 @@ export const sendMessage = async (
   senderId,
   senderData,
   messageText,
-  imageBase64 = null // Changed from imageUrl to imageBase64
+  imageBase64 = null,
+  fileBase64 = null,
+  fileName = null,
+  mimeType = null,
+  fileSize = null
 ) => {
   try {
     const messagesRef = collection(
@@ -192,13 +196,22 @@ export const sendMessage = async (
       "messages"
     );
 
+    // Determine message type
+    let messageType = "text";
+    if (imageBase64) messageType = "image";
+    else if (fileBase64) messageType = "file";
+
     const newMessage = {
       senderId,
       senderName: senderData.name,
       senderAvatar: senderData.avatar,
       text: messageText,
-      imageBase64: imageBase64 || null, // Store base64 string in Firestore
-      type: imageBase64 ? "image" : "text",
+      imageBase64: imageBase64 || null,
+      fileBase64: fileBase64 || null,
+      fileName: fileName || null,
+      mimeType: mimeType || null,
+      fileSize: fileSize || null,
+      type: messageType,
       status: "sent",
       createdAt: serverTimestamp(),
     };
@@ -215,9 +228,17 @@ export const sendMessage = async (
         (id) => id !== senderId
       );
 
+      // Determine last message preview text
+      let previewText = messageText;
+      if (!previewText) {
+        if (imageBase64) previewText = "📷 Hình ảnh";
+        else if (fileBase64) previewText = `📎 ${fileName || "File"}`;
+        else previewText = "";
+      }
+
       await updateDoc(conversationRef, {
         lastMessage: {
-          text: messageText || "📷 Hình ảnh",
+          text: previewText,
           senderId,
           senderName: senderData.name,
           timestamp: serverTimestamp(),

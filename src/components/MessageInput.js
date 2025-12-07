@@ -10,7 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-export default function MessageInput({ onSend, onImagePick, onTyping, disabled = false, placeholder = "Nhập tin nhắn..." }) {
+export default function MessageInput({ onSend, onImagePick, onFilePick, onTyping, disabled = false, placeholder = "Nhập tin nhắn..." }) {
   const [text, setText] = useState("");
   const typingTimeoutRef = useRef(null);
 
@@ -66,11 +66,18 @@ export default function MessageInput({ onSend, onImagePick, onTyping, disabled =
       keyboardVerticalOffset={90}
     >
       <View style={styles.container}>
-        {onImagePick && (
-          <TouchableOpacity style={styles.imageButton} onPress={onImagePick}>
-            <Ionicons name="image" size={24} color="#007AFF" />
-          </TouchableOpacity>
-        )}
+        <View style={styles.actionButtons}>
+          {onImagePick && (
+            <TouchableOpacity style={styles.actionButton} onPress={onImagePick}>
+              <Ionicons name="image" size={24} color="#007AFF" />
+            </TouchableOpacity>
+          )}
+          {onFilePick && (
+            <TouchableOpacity style={styles.actionButton} onPress={onFilePick}>
+              <Ionicons name="document-attach" size={24} color="#007AFF" />
+            </TouchableOpacity>
+          )}
+        </View>
 
         <TextInput
           style={[styles.input, disabled && styles.inputDisabled]}
@@ -107,7 +114,11 @@ const styles = StyleSheet.create({
     borderTopColor: "#e0e0e0",
     alignItems: "flex-end",
   },
-  imageButton: {
+  actionButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  actionButton: {
     padding: 8,
     marginRight: 5,
   },

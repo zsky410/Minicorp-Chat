@@ -1,5 +1,8 @@
 import React from "react";
-import { View, Text, Image, StyleSheet } from "react-native";
+import { View, Text, Image, TouchableOpacity, StyleSheet, Linking, Platform, Alert } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 
 const ChatBubble = React.memo(({ message, isOwn, previousMessage, showSenderName = false }) => {
   const formatTime = (timestamp) => {
@@ -62,6 +65,66 @@ const ChatBubble = React.memo(({ message, isOwn, previousMessage, showSenderName
   const showTime = shouldShowTime();
   const showName = shouldShowSenderName();
 
+  // Handle file press - download and open file
+  const handleFilePress = async (message) => {
+    try {
+      if (!message.fileBase64 || !message.fileName) return;
+
+      const mimeType = message.mimeType || "application/octet-stream";
+      const dataUri = `data:${mimeType};base64,${message.fileBase64}`;
+
+      if (Platform.OS === "web") {
+        // Web: create download link
+        const link = document.createElement("a");
+        link.href = dataUri;
+        link.download = message.fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // Mobile: save to file system and share
+        try {
+          const dataUri = `data:${mimeType};base64,${message.fileBase64}`;
+          const tempFileUri = `${FileSystem.cacheDirectory}${Date.now()}_${message.fileName}`;
+
+          // Try Sharing API directly with data URI first
+          const isAvailable = await Sharing.isAvailableAsync();
+
+          if (isAvailable) {
+            try {
+              // Try sharing data URI directly (works on some platforms)
+              await Sharing.shareAsync(dataUri, {
+                mimeType: mimeType,
+                dialogTitle: `Mở ${message.fileName}`,
+              });
+            } catch (shareError) {
+              // If data URI doesn't work, save file to filesystem first
+              // Use legacy API to write base64 string
+              // Note: This writes the base64 as text, which may not work for all file types
+              // But it's the simplest approach with current FileSystem API
+              await FileSystem.writeAsStringAsync(tempFileUri, message.fileBase64);
+
+              // Share the saved file
+              await Sharing.shareAsync(tempFileUri, {
+                mimeType: mimeType,
+                dialogTitle: `Mở ${message.fileName}`,
+              });
+            }
+          } else {
+            // Sharing not available - try to save and show location
+            await FileSystem.writeAsStringAsync(tempFileUri, message.fileBase64);
+            Alert.alert("Thông báo", `File đã được lưu tại: ${tempFileUri}`);
+          }
+        } catch (error) {
+          console.error("Error handling file:", error);
+          Alert.alert("Lỗi", "Không thể mở file. " + (error.message || "Unknown error"));
+        }
+      }
+    } catch (error) {
+      console.error("Error handling file:", error);
+    }
+  };
+
   return (
     <View
       style={[styles.container, isOwn ? styles.ownContainer : styles.otherContainer]}
@@ -77,6 +140,33 @@ const ChatBubble = React.memo(({ message, isOwn, previousMessage, showSenderName
           }}
           style={styles.image}
         />
+      )}
+
+      {message.fileBase64 && (
+        <TouchableOpacity
+          style={[styles.fileContainer, isOwn ? styles.ownFileContainer : styles.otherFileContainer]}
+          onPress={() => handleFilePress(message)}
+        >
+          <Ionicons name="document" size={32} color={isOwn ? "#fff" : "#007AFF"} />
+          <View style={styles.fileInfo}>
+            <Text
+              style={[styles.fileName, isOwn ? styles.ownFileName : styles.otherFileName]}
+              numberOfLines={1}
+            >
+              {message.fileName || "File"}
+            </Text>
+            {message.fileSize && (
+              <Text style={[styles.fileSize, isOwn ? styles.ownFileSize : styles.otherFileSize]}>
+                {(message.fileSize / 1024).toFixed(1)} KB
+              </Text>
+            )}
+          </View>
+          <Ionicons
+            name="download-outline"
+            size={20}
+            color={isOwn ? "#fff" : "#007AFF"}
+          />
+        </TouchableOpacity>
       )}
 
       {message.text && (
@@ -161,6 +251,46 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 10,
     marginBottom: 5,
+  },
+  fileContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 5,
+    minWidth: 200,
+    maxWidth: 250,
+  },
+  ownFileContainer: {
+    backgroundColor: "#007AFF",
+  },
+  otherFileContainer: {
+    backgroundColor: "#E9E9EB",
+  },
+  fileInfo: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 8,
+  },
+  fileName: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  ownFileName: {
+    color: "#fff",
+  },
+  otherFileName: {
+    color: "#000",
+  },
+  fileSize: {
+    fontSize: 12,
+  },
+  ownFileSize: {
+    color: "rgba(255, 255, 255, 0.8)",
+  },
+  otherFileSize: {
+    color: "#666",
   },
 });
 

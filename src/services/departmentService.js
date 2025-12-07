@@ -153,10 +153,19 @@ export const sendDepartmentMessage = async (
   senderId,
   senderData,
   messageText,
-  imageBase64 = null
+  imageBase64 = null,
+  fileBase64 = null,
+  fileName = null,
+  mimeType = null,
+  fileSize = null
 ) => {
   try {
     const messagesRef = collection(db, "departments", deptId, "messages");
+
+    // Determine message type
+    let messageType = "text";
+    if (imageBase64) messageType = "image";
+    else if (fileBase64) messageType = "file";
 
     const newMessage = {
       senderId,
@@ -165,7 +174,11 @@ export const sendDepartmentMessage = async (
       senderDepartment: senderData.department,
       text: messageText,
       imageBase64: imageBase64 || null,
-      type: imageBase64 ? "image" : "text",
+      fileBase64: fileBase64 || null,
+      fileName: fileName || null,
+      mimeType: mimeType || null,
+      fileSize: fileSize || null,
+      type: messageType,
       createdAt: serverTimestamp(),
     };
 
@@ -175,9 +188,17 @@ export const sendDepartmentMessage = async (
     const deptRef = doc(db, "departments", deptId);
     const deptDoc = await getDoc(deptRef);
 
+    // Determine last message preview text
+    let previewText = messageText;
+    if (!previewText) {
+      if (imageBase64) previewText = "📷 Hình ảnh";
+      else if (fileBase64) previewText = `📎 ${fileName || "File"}`;
+      else previewText = "";
+    }
+
     const updateData = {
       lastMessage: {
-        text: messageText || "📷 Hình ảnh",
+        text: previewText,
         senderId,
         senderName: senderData.name,
         timestamp: serverTimestamp(),

@@ -57,6 +57,17 @@ export const signIn = async (email, password) => {
       password
     );
 
+    // Check if user exists in Firestore
+    const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
+    if (!userDoc.exists()) {
+      // User doesn't exist in Firestore, sign out immediately
+      await firebaseSignOut(auth);
+      return {
+        success: false,
+        error: "Tài khoản không tồn tại trong hệ thống. Vui lòng liên hệ admin."
+      };
+    }
+
     // Update status to online
     await updateDoc(doc(db, "users", userCredential.user.uid), {
       status: "online",

@@ -19,7 +19,7 @@ import {
   updateTypingStatus,
 } from "../../services/chatService";
 import { getUserById } from "../../services/userService";
-import { uploadChatImage } from "../../services/storageService";
+import { uploadChatImage, uploadFile } from "../../services/storageService";
 import { auth } from "../../services/firebase";
 import ChatBubble from "../../components/ChatBubble";
 import MessageInput from "../../components/MessageInput";
@@ -28,6 +28,7 @@ import TypingIndicator from "../../components/TypingIndicator";
 import LoadingScreen from "../../components/LoadingScreen";
 import EmptyState from "../../components/EmptyState";
 import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 
 export default function ChatScreen({ route, navigation }) {
   const { conversationId, otherUserId, userName, userAvatar } = route.params;
@@ -207,6 +208,54 @@ export default function ChatScreen({ route, navigation }) {
     }
   };
 
+  const handleFilePick = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*", // All file types
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const file = result.assets[0];
+        setUploading(true);
+
+        // Upload file
+        const uploadResult = await uploadFile(
+          file.uri,
+          file.name,
+          file.mimeType || "application/octet-stream"
+        );
+
+        if (uploadResult.success) {
+          // Send message with file (base64)
+          const senderData = {
+            name: user.name,
+            avatar: user.avatar,
+          };
+          await sendMessage(
+            conversationId,
+            user.uid,
+            senderData,
+            "",
+            null, // imageBase64
+            uploadResult.data, // fileBase64
+            uploadResult.fileName,
+            uploadResult.mimeType,
+            uploadResult.size * 1024 // Convert KB to bytes
+          );
+        } else {
+          Alert.alert("Lỗi", uploadResult.error || "Không thể xử lý file");
+        }
+
+        setUploading(false);
+      }
+    } catch (error) {
+      console.error("Error picking file:", error);
+      setUploading(false);
+      Alert.alert("Lỗi", "Đã có lỗi xảy ra khi chọn file");
+    }
+  };
+
   // Render date separator
   const renderDateSeparator = (currentMsg, previousMsg) => {
     if (!currentMsg?.createdAt) return null;
@@ -305,6 +354,7 @@ export default function ChatScreen({ route, navigation }) {
       <MessageInput
         onSend={handleSend}
         onImagePick={handleImagePick}
+        onFilePick={handleFilePick}
         onTyping={handleTyping}
       />
     </KeyboardAvoidingView>

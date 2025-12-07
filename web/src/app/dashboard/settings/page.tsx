@@ -184,6 +184,70 @@ export default function SettingsPage() {
           Lưu cài đặt
         </Button>
       </Box>
+
+      {/* Reset Database Section */}
+      <Card sx={{ mt: 4, border: "2px solid", borderColor: "error.main" }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom color="error">
+            ⚠️ Reset Database
+          </Typography>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            Xóa toàn bộ dữ liệu trong Firestore và Firebase Auth. Hành động này không thể hoàn tác!
+          </Typography>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <Typography variant="body2" fontWeight="bold">
+              Cảnh báo: Script này sẽ xóa:
+            </Typography>
+            <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 20 }}>
+              <li>Tất cả users trong Firestore và Firebase Auth</li>
+              <li>Tất cả conversations và messages</li>
+              <li>Tất cả departments và department messages</li>
+              <li>Tất cả announcements</li>
+              <li>Tất cả polls</li>
+              <li>Tất cả pinned messages</li>
+              <li>Tất cả tasks</li>
+            </ul>
+          </Alert>
+          <Box mt={2}>
+            <Typography variant="body2" fontWeight="bold" gutterBottom>
+              Cách sử dụng:
+            </Typography>
+            <ol style={{ marginTop: 8, paddingLeft: 20 }}>
+              <li>
+                <Typography variant="body2">
+                  Đảm bảo bạn đã có <code>serviceAccountKey.json</code> trong root project
+                </Typography>
+              </li>
+              <li>
+                <Typography variant="body2">
+                  Mở terminal trong thư mục root project và chạy:
+                </Typography>
+                <Box
+                  component="pre"
+                  sx={{
+                    backgroundColor: "#f5f5f5",
+                    padding: 2,
+                    borderRadius: 1,
+                    mt: 1,
+                    mb: 1,
+                    overflow: "auto",
+                  }}
+                >
+                  <code>node scripts/resetAllData.js</code>
+                </Box>
+              </li>
+              <li>
+                <Typography variant="body2">
+                  Sau khi reset, tạo lại admin user từ web dashboard
+                </Typography>
+              </li>
+            </ol>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2, fontStyle: "italic" }}>
+              Xem chi tiết trong <code>scripts/README.md</code>
+            </Typography>
+          </Box>
+        </CardContent>
+      </Card>
     </Box>
   );
 }

@@ -128,3 +128,59 @@ export const uploadAvatarImage = async (userId, imageUri) => {
   }
 };
 
+// Upload file (convert to base64)
+// Supports: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, etc.
+export const uploadFile = async (fileUri, fileName, mimeType) => {
+  try {
+    // Read file
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
+
+    // Convert blob to base64
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result;
+        const base64Data = base64String.includes(",")
+          ? base64String.split(",")[1]
+          : base64String;
+
+        // Check size (Firestore limit is 1MB, but base64 increases size by ~33%)
+        // So we limit to ~750KB base64 (which is ~560KB actual)
+        const sizeInBytes = (base64Data.length * 3) / 4;
+        const sizeInKB = sizeInBytes / 1024;
+
+        if (sizeInKB > 750) {
+          resolve({
+            success: false,
+            error: "File quá lớn. Vui lòng chọn file nhỏ hơn 750KB.",
+          });
+          return;
+        }
+
+        resolve({
+          success: true,
+          data: base64Data,
+          fileName: fileName,
+          mimeType: mimeType,
+          size: sizeInKB,
+        });
+      };
+      reader.onerror = (error) => {
+        console.error("Error converting file to base64:", error);
+        reject({
+          success: false,
+          error: "Không thể xử lý file",
+        });
+      };
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error("Error uploading file:", error);
+    return {
+      success: false,
+      error: error.message || "Không thể xử lý file",
+    };
+  }
+};
+
