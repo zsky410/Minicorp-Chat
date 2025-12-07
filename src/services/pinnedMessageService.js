@@ -99,7 +99,11 @@ export const subscribeToPinnedMessages = (departmentId, callback) => {
       callback(pinned);
     },
     (error) => {
-      console.error("Error subscribing to pinned messages:", error);
+      // Chỉ log lỗi nếu không phải do permission (user đã logout)
+      if (error.code !== "permission-denied") {
+        console.error("Error subscribing to pinned messages:", error);
+      }
+      // Trả về empty array khi có lỗi (bao gồm cả permission denied)
       callback([]);
     }
   );

@@ -1,11 +1,12 @@
 /**
  * Permission Service
  * Tính toán và check permissions dựa trên user role
+ * Theo thiết kế mới: Admin chỉ có trên web, không có trong app
  */
 
 /**
  * Get user permissions object based on role
- * @param {Object} user - User object with role, department, managedDepartments
+ * @param {Object} user - User object with role, department
  * @returns {Object} Permissions object
  */
 export const getUserPermissions = (user) => {
@@ -16,46 +17,28 @@ export const getUserPermissions = (user) => {
   const role = user.role || "employee"; // Default to employee if no role
 
   switch (role) {
-    case "admin":
-      return {
-        canCreateDeptAnnouncement: true,
-        canCreateCompanyAnnouncement: true,
-        canPinMessages: true,
-        canCreateTasks: true,
-        canCreatePolls: true,
-        canViewAllDepartments: true,
-        canManageUsers: true,
-        canAccessDashboard: true,
-        canViewStats: true,
-        canExportReports: true,
-      };
-
     case "director":
       return {
-        canCreateDeptAnnouncement: true,
-        canCreateCompanyAnnouncement: true,
-        canPinMessages: true,
-        canCreateTasks: true,
-        canCreatePolls: true,
-        canViewAllDepartments: true,
-        canManageUsers: false,
-        canAccessDashboard: false,
-        canViewStats: true,
-        canExportReports: true,
+        canCreateDeptAnnouncement: false, // Director không tạo thông báo phòng ban
+        canCreateCompanyAnnouncement: true, // Chỉ tạo thông báo công ty (general)
+        canPinMessages: false, // Director không thể pin
+        canCreatePolls: false, // Director không thể tạo polls
+        canViewAllDepartments: true, // Director xem tất cả phòng ban (read-only)
+        canChatInDepartment: false, // Director không thể chat trong phòng ban (chỉ xem)
+        canViewDeptAnnouncements: false, // Director không xem thông báo phòng ban
+        canViewCompanyAnnouncements: true, // Director xem thông báo công ty
       };
 
     case "manager":
       return {
-        canCreateDeptAnnouncement: true,
-        canCreateCompanyAnnouncement: false,
-        canPinMessages: true,
-        canCreateTasks: true,
-        canCreatePolls: true,
-        canViewAllDepartments: false,
-        canManageUsers: false,
-        canAccessDashboard: false,
-        canViewStats: true,
-        canExportReports: false,
+        canCreateDeptAnnouncement: true, // Manager tạo thông báo phòng ban mình
+        canCreateCompanyAnnouncement: false, // Manager không tạo thông báo công ty
+        canPinMessages: true, // Manager có thể pin (chỉ phòng ban mình)
+        canCreatePolls: true, // Manager có thể tạo polls (chỉ phòng ban mình)
+        canViewAllDepartments: false, // Manager chỉ thấy phòng ban mình
+        canChatInDepartment: true, // Manager có thể chat trong phòng ban mình
+        canViewDeptAnnouncements: true, // Manager xem thông báo phòng ban
+        canViewCompanyAnnouncements: true, // Manager xem thông báo công ty
       };
 
     case "employee":
@@ -73,20 +56,18 @@ const getDefaultPermissions = () => {
     canCreateDeptAnnouncement: false,
     canCreateCompanyAnnouncement: false,
     canPinMessages: false,
-    canCreateTasks: false,
     canCreatePolls: false,
     canViewAllDepartments: false,
-    canManageUsers: false,
-    canAccessDashboard: false,
-    canViewStats: false,
-    canExportReports: false,
+    canChatInDepartment: true, // Employee có thể chat trong phòng ban mình
+    canViewDeptAnnouncements: true, // Employee xem thông báo phòng ban
+    canViewCompanyAnnouncements: true, // Employee xem thông báo công ty
   };
 };
 
 /**
  * Check if user can create announcement for a department
  * @param {Object} user - User object
- * @param {string} departmentId - Department ID (optional, for company-wide)
+ * @param {string} departmentId - Department ID (null for company-wide "general")
  * @returns {boolean}
  */
 export const canCreateAnnouncement = (user, departmentId = null) => {
@@ -94,22 +75,18 @@ export const canCreateAnnouncement = (user, departmentId = null) => {
 
   const permissions = getUserPermissions(user);
 
-  // Company-wide announcement
-  if (!departmentId) {
-    return (
-      permissions.canCreateCompanyAnnouncement ||
-      user.role === "admin" ||
-      user.role === "director"
-    );
+  // Company-wide announcement (chỉ trong "general")
+  if (!departmentId || departmentId === "general") {
+    // Chỉ Director mới có thể tạo thông báo công ty
+    return permissions.canCreateCompanyAnnouncement && user.role === "director";
   }
 
-  // Department announcement
-  return (
-    permissions.canCreateDeptAnnouncement ||
-    user.role === "admin" ||
-    user.role === "director" ||
-    isManagerOfDepartment(user, departmentId)
-  );
+  // Department announcement - chỉ Manager của phòng ban đó
+  if (permissions.canCreateDeptAnnouncement && user.role === "manager") {
+    return isManagerOfDepartment(user, departmentId);
+  }
+
+  return false;
 };
 
 /**
@@ -123,39 +100,8 @@ export const canPinMessage = (user, departmentId) => {
 
   const permissions = getUserPermissions(user);
 
-  // Admin can pin anywhere
-  if (user.role === "admin") return true;
-
-  // Director can pin anywhere
-  if (user.role === "director") return true;
-
-  // Manager can pin in their managed departments
-  if (permissions.canPinMessages) {
-    return isManagerOfDepartment(user, departmentId);
-  }
-
-  return false;
-};
-
-/**
- * Check if user can create task in a department
- * @param {Object} user - User object
- * @param {string} departmentId - Department ID
- * @returns {boolean}
- */
-export const canCreateTask = (user, departmentId) => {
-  if (!user || !departmentId) return false;
-
-  const permissions = getUserPermissions(user);
-
-  // Admin can create task anywhere
-  if (user.role === "admin") return true;
-
-  // Director can create task anywhere
-  if (user.role === "director") return true;
-
-  // Manager can create task in their managed departments
-  if (permissions.canCreateTasks) {
+  // Chỉ Manager mới có thể pin, và chỉ trong phòng ban mình quản lý
+  if (user.role === "manager" && permissions.canPinMessages) {
     return isManagerOfDepartment(user, departmentId);
   }
 
@@ -173,14 +119,9 @@ export const canCreatePoll = (user, departmentId) => {
 
   const permissions = getUserPermissions(user);
 
-  // Admin can create poll anywhere
-  if (user.role === "admin") return true;
-
-  // Director can create poll anywhere
-  if (user.role === "director") return true;
-
-  // Manager can create poll in their managed departments
-  if (permissions.canCreatePolls) {
+  // Chỉ Manager mới có thể tạo polls, và chỉ trong phòng ban mình quản lý
+  // Director KHÔNG thể tạo polls theo thiết kế mới
+  if (user.role === "manager" && permissions.canCreatePolls) {
     return isManagerOfDepartment(user, departmentId);
   }
 
@@ -195,7 +136,7 @@ export const canCreatePoll = (user, departmentId) => {
 export const canViewAllDepartments = (user) => {
   if (!user) return false;
   const permissions = getUserPermissions(user);
-  return permissions.canViewAllDepartments;
+  return permissions.canViewAllDepartments && user.role === "director";
 };
 
 /**
@@ -206,7 +147,57 @@ export const canViewAllDepartments = (user) => {
 export const canCreateCompanyAnnouncement = (user) => {
   if (!user) return false;
   const permissions = getUserPermissions(user);
-  return permissions.canCreateCompanyAnnouncement;
+  return permissions.canCreateCompanyAnnouncement && user.role === "director";
+};
+
+/**
+ * Check if user can chat in a department
+ * @param {Object} user - User object
+ * @param {string} departmentId - Department ID
+ * @returns {boolean}
+ */
+export const canChatInDepartment = (user, departmentId) => {
+  if (!user || !departmentId) return false;
+
+  // Director không thể chat trong phòng ban (chỉ xem read-only)
+  if (user.role === "director") {
+    return false;
+  }
+
+  // Employee và Manager có thể chat trong phòng ban mình
+  if (user.department === departmentId) {
+    return true;
+  }
+
+  // Manager có thể chat trong phòng ban mình quản lý (nếu khác department)
+  if (user.role === "manager") {
+    return isManagerOfDepartment(user, departmentId);
+  }
+
+  return false;
+};
+
+/**
+ * Check if user can view department announcements
+ * @param {Object} user - User object
+ * @returns {boolean}
+ */
+export const canViewDeptAnnouncements = (user) => {
+  if (!user) return false;
+  const permissions = getUserPermissions(user);
+  // Director không xem thông báo phòng ban
+  return permissions.canViewDeptAnnouncements;
+};
+
+/**
+ * Check if user can view company announcements
+ * @param {Object} user - User object
+ * @returns {boolean}
+ */
+export const canViewCompanyAnnouncements = (user) => {
+  if (!user) return false;
+  const permissions = getUserPermissions(user);
+  return permissions.canViewCompanyAnnouncements;
 };
 
 /**
@@ -218,20 +209,17 @@ export const canCreateCompanyAnnouncement = (user) => {
 export const isManagerOfDepartment = (user, departmentId) => {
   if (!user || !departmentId) return false;
 
-  // Admin is manager of all departments
-  if (user.role === "admin") return true;
+  // Chỉ Manager mới có thể là manager của department
+  if (user.role !== "manager") return false;
 
-  // Director is manager of all departments
-  if (user.role === "director") return true;
-
-  // Check if user is manager and department is in managedDepartments
-  if (user.role === "manager" && user.managedDepartments) {
-    return user.managedDepartments.includes(departmentId);
+  // Check nếu user's department matches (Manager chỉ quản lý 1 phòng ban)
+  if (user.department === departmentId) {
+    return true;
   }
 
-  // Also check if user's department matches (for backward compatibility)
-  if (user.role === "manager" && user.department) {
-    return user.department === departmentId;
+  // Backward compatibility: check managedDepartments (nếu có)
+  if (user.managedDepartments && Array.isArray(user.managedDepartments)) {
+    return user.managedDepartments.includes(departmentId);
   }
 
   return false;
@@ -246,31 +234,15 @@ export const isManagerOfDepartment = (user, departmentId) => {
 export const canViewStats = (user, departmentId) => {
   if (!user || !departmentId) return false;
 
-  const permissions = getUserPermissions(user);
-
-  // Admin can view all stats
-  if (user.role === "admin") return true;
-
-  // Director can view all stats
+  // Director có thể xem stats tất cả phòng ban
   if (user.role === "director") return true;
 
-  // Manager can view stats of their departments
-  if (permissions.canViewStats) {
+  // Manager chỉ xem stats phòng ban mình quản lý
+  if (user.role === "manager") {
     return isManagerOfDepartment(user, departmentId);
   }
 
   return false;
-};
-
-/**
- * Check if user can export reports
- * @param {Object} user - User object
- * @returns {boolean}
- */
-export const canExportReports = (user) => {
-  if (!user) return false;
-  const permissions = getUserPermissions(user);
-  return permissions.canExportReports;
 };
 
 /**
@@ -284,9 +256,24 @@ export const getRoleDisplayName = (role) => {
     member: "Nhân viên", // Backward compatibility
     manager: "Quản lý",
     director: "Giám đốc",
-    admin: "Quản trị viên",
+    // Admin không có trong app, chỉ có trên web
   };
 
   return roleMap[role] || "Nhân viên";
 };
 
+/**
+ * Get role badge color
+ * @param {string} role - Role string
+ * @returns {string} Color code
+ */
+export const getRoleBadgeColor = (role) => {
+  const colorMap = {
+    employee: "#8E8E93", // Xám
+    member: "#8E8E93", // Backward compatibility
+    manager: "#007AFF", // Xanh
+    director: "#5856D6", // Tím
+  };
+
+  return colorMap[role] || "#8E8E93";
+};

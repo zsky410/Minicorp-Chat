@@ -13,27 +13,30 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
+import { auth } from "../../services/firebase";
 import {
   subscribeToDepartmentMessages,
   sendDepartmentMessage,
+  markDepartmentAsRead,
 } from "../../services/departmentService";
 import {
   subscribeToPinnedMessages,
   pinMessage,
   unpinMessage,
 } from "../../services/pinnedMessageService";
-import { canPinMessage } from "../../services/permissionService";
+import {
+  canPinMessage,
+  canChatInDepartment,
+  canCreatePoll,
+} from "../../services/permissionService";
 import { uploadChatImage } from "../../services/storageService";
 import ChatBubble from "../../components/ChatBubble";
 import MessageInput from "../../components/MessageInput";
 import PinnedMessageCard from "../../components/PinnedMessageCard";
-import CreateTaskModal from "../../components/CreateTaskModal";
 import CreatePollModal from "../../components/CreatePollModal";
 import PollCard from "../../components/PollCard";
 import LoadingScreen from "../../components/LoadingScreen";
 import EmptyState from "../../components/EmptyState";
-import { canCreateTask, canCreatePoll } from "../../services/permissionService";
-import { createTask } from "../../services/taskService";
 import { createPoll, votePoll, subscribeToPolls } from "../../services/pollService";
 import * as ImagePicker from "expo-image-picker";
 
@@ -45,30 +48,27 @@ export default function DepartmentChatScreen({ route, navigation }) {
   const [polls, setPolls] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [showTaskModal, setShowTaskModal] = useState(false);
   const [showPollModal, setShowPollModal] = useState(false);
   const flatListRef = useRef(null);
 
   const canPin = canPinMessage(user, departmentId);
-  const canCreateTaskPerm = canCreateTask(user, departmentId);
   const canCreatePollPerm = canCreatePoll(user, departmentId);
-  const isDirectorViewingOtherDept =
-    user?.role === "director" && user?.department?.toLowerCase() !== deptName?.toLowerCase();
+  const canChat = canChatInDepartment(user, departmentId);
+  // Director không thể chat trong bất kỳ phòng ban nào (chỉ xem read-only)
+  const isDirectorReadOnly = user?.role === "director";
 
   // Setup header
   useEffect(() => {
-    const isDirectorViewingOtherDept =
-      user?.role === "director" && user?.department?.toLowerCase() !== deptName?.toLowerCase();
-
     navigation.setOptions({
       headerTitle: () => (
         <View style={styles.headerContainer}>
           <Text style={styles.headerIcon}>{deptIcon || "📁"}</Text>
           <View style={styles.headerTitleRow}>
             <Text style={styles.headerName}>#{deptName}</Text>
-            {isDirectorViewingOtherDept && (
+            {isDirectorReadOnly && (
               <View style={styles.directorBadge}>
-                <Text style={styles.directorBadgeText}>Director</Text>
+                <Ionicons name="eye-outline" size={14} color="#5856D6" />
+                <Text style={styles.directorBadgeText}>Xem</Text>
               </View>
             )}
           </View>
@@ -78,9 +78,9 @@ export default function DepartmentChatScreen({ route, navigation }) {
         backgroundColor: "#fff",
       },
     });
-  }, [deptName, deptIcon, user?.role, user?.department, navigation]);
+  }, [deptName, deptIcon, isDirectorReadOnly, navigation]);
 
-  // Subscribe to messages
+  // Subscribe to messages and mark as read
   useEffect(() => {
     if (!departmentId || !user?.uid) {
       setMessages([]);
@@ -90,10 +90,18 @@ export default function DepartmentChatScreen({ route, navigation }) {
 
     let isMounted = true;
 
+    // Mark as read when entering department chat
+    markDepartmentAsRead(departmentId, user.uid);
+
     const unsubscribe = subscribeToDepartmentMessages(departmentId, (data) => {
       if (!isMounted) return;
       setMessages(data);
       setLoading(false);
+
+      // Mark as read when new messages arrive (user is viewing)
+      if (data.length > 0) {
+        markDepartmentAsRead(departmentId, user.uid);
+      }
     });
 
     return () => {
@@ -106,7 +114,18 @@ export default function DepartmentChatScreen({ route, navigation }) {
   useEffect(() => {
     if (!departmentId) return;
 
+    // Kiểm tra user đã authenticated trước khi subscribe
+    if (!auth.currentUser) {
+      setPinnedMessages([]);
+      return;
+    }
+
     const unsubscribe = subscribeToPinnedMessages(departmentId, (data) => {
+      // Kiểm tra lại user vẫn authenticated khi nhận data
+      if (!auth.currentUser) {
+        setPinnedMessages([]);
+        return;
+      }
       setPinnedMessages(data.slice(0, 5)); // Show max 5 pinned
     });
 
@@ -117,7 +136,18 @@ export default function DepartmentChatScreen({ route, navigation }) {
   useEffect(() => {
     if (!departmentId) return;
 
+    // Kiểm tra user đã authenticated trước khi subscribe
+    if (!auth.currentUser) {
+      setPolls([]);
+      return;
+    }
+
     const unsubscribe = subscribeToPolls(departmentId, (data) => {
+      // Kiểm tra lại user vẫn authenticated khi nhận data
+      if (!auth.currentUser) {
+        setPolls([]);
+        return;
+      }
       setPolls(data);
     });
 
@@ -134,6 +164,11 @@ export default function DepartmentChatScreen({ route, navigation }) {
   }, [messages]);
 
   const handleSendMessage = async (text) => {
+    // Director không thể chat (read-only mode)
+    if (!canChat || isDirectorReadOnly) {
+      return;
+    }
+
     if (!text.trim() || !user?.uid) return;
 
     const result = await sendDepartmentMessage(
@@ -153,6 +188,11 @@ export default function DepartmentChatScreen({ route, navigation }) {
   };
 
   const handleImagePick = async () => {
+    // Director không thể gửi ảnh (read-only mode)
+    if (!canChat || isDirectorReadOnly) {
+      return;
+    }
+
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
@@ -257,15 +297,6 @@ export default function DepartmentChatScreen({ route, navigation }) {
     }
   };
 
-  const handleCreateTask = async (taskData) => {
-    const result = await createTask(departmentId, taskData);
-    if (result.success) {
-      Alert.alert("Thành công", "Đã tạo task");
-      setShowTaskModal(false);
-    } else {
-      Alert.alert("Lỗi", result.error);
-    }
-  };
 
   const handleCreatePoll = async (pollData) => {
     const result = await createPoll(departmentId, pollData);
@@ -278,6 +309,11 @@ export default function DepartmentChatScreen({ route, navigation }) {
   };
 
   const handleVotePoll = async (pollId, optionId) => {
+    // Director không thể vote
+    if (isDirectorReadOnly) {
+      return;
+    }
+
     const result = await votePoll(pollId, optionId, user.uid);
     if (!result.success) {
       Alert.alert("Lỗi", result.error);
@@ -293,12 +329,19 @@ export default function DepartmentChatScreen({ route, navigation }) {
     });
 
     const isOwn = item.senderId === user?.uid;
+    const previousMessage = index > 0 ? messages[index - 1] : null;
+
     return (
       <TouchableOpacity
         onLongPress={() => handleLongPressMessage(item)}
         activeOpacity={0.7}
       >
-        <ChatBubble message={item} isOwn={isOwn} />
+        <ChatBubble
+          message={item}
+          isOwn={isOwn}
+          previousMessage={previousMessage}
+          showSenderName={true}
+        />
       </TouchableOpacity>
     );
   };
@@ -310,6 +353,7 @@ export default function DepartmentChatScreen({ route, navigation }) {
       poll={poll}
       onVote={handleVotePoll}
       currentUserId={user?.uid}
+      canVote={!isDirectorReadOnly} // Director không thể vote
     />
   );
 
@@ -376,51 +420,37 @@ export default function DepartmentChatScreen({ route, navigation }) {
         </View>
       )}
 
-      {isDirectorViewingOtherDept && (
+      {/* Director Read-only Banner */}
+      {isDirectorReadOnly && (
         <View style={styles.directorWarning}>
-          <Ionicons name="information-circle" size={18} color="#FF9500" />
+          <Ionicons name="eye-outline" size={18} color="#5856D6" />
           <Text style={styles.directorWarningText}>
-            Bạn đang xem với quyền Director (Read-only)
+            Chế độ chỉ xem
           </Text>
         </View>
       )}
 
-      <MessageInput
-        onSend={handleSendMessage}
-        onImagePick={handleImagePick}
-        disabled={isDirectorViewingOtherDept}
-      />
-
-      {/* FABs for Create Task and Poll */}
-      {(canCreateTaskPerm || canCreatePollPerm) && (
-        <View style={styles.fabContainer}>
-          {canCreateTaskPerm && (
-            <TouchableOpacity
-              style={[styles.fab, styles.fabTask]}
-              onPress={() => setShowTaskModal(true)}
-            >
-              <Ionicons name="checkmark-circle" size={24} color="#fff" />
-            </TouchableOpacity>
-          )}
-          {canCreatePollPerm && (
-            <TouchableOpacity
-              style={[styles.fab, styles.fabPoll]}
-              onPress={() => setShowPollModal(true)}
-            >
-              <Ionicons name="stats-chart" size={24} color="#fff" />
-            </TouchableOpacity>
-          )}
-        </View>
+      {/* MessageInput - chỉ hiển thị khi không phải read-only */}
+      {!isDirectorReadOnly && canChat && (
+        <MessageInput
+          onSend={handleSendMessage}
+          onImagePick={handleImagePick}
+          disabled={false}
+          placeholder="Nhập tin nhắn..."
+        />
       )}
 
-      <CreateTaskModal
-        visible={showTaskModal}
-        onClose={() => setShowTaskModal(false)}
-        onSubmit={handleCreateTask}
-        departmentId={departmentId}
-        currentUserId={user?.uid}
-        currentUserName={user?.name}
-      />
+      {/* FAB for Create Poll (chỉ Manager) */}
+      {canCreatePollPerm && !isDirectorReadOnly && (
+        <View style={styles.fabContainer}>
+          <TouchableOpacity
+            style={[styles.fab, styles.fabPoll]}
+            onPress={() => setShowPollModal(true)}
+          >
+            <Ionicons name="stats-chart" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <CreatePollModal
         visible={showPollModal}
@@ -456,32 +486,36 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   directorBadge: {
-    backgroundColor: "#FF9500",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E8E8FF",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
+    gap: 4,
   },
   directorBadgeText: {
-    color: "#fff",
+    color: "#5856D6",
     fontSize: 11,
     fontWeight: "600",
   },
   directorWarning: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF9E6",
-    padding: 10,
+    backgroundColor: "#E8E8FF",
+    padding: 12,
     marginHorizontal: 15,
     marginBottom: 10,
     borderRadius: 8,
     borderLeftWidth: 3,
-    borderLeftColor: "#FF9500",
+    borderLeftColor: "#5856D6",
   },
   directorWarningText: {
     marginLeft: 8,
     fontSize: 13,
-    color: "#FF9500",
+    color: "#5856D6",
     fontWeight: "500",
+    flex: 1,
   },
   messagesContainer: {
     padding: 15,

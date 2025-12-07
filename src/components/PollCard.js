@@ -2,11 +2,14 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-export default function PollCard({ poll, onVote, currentUserId }) {
+export default function PollCard({ poll, onVote, currentUserId, canVote = true }) {
   const totalVotes = poll.options.reduce((sum, opt) => sum + (opt.votes?.length || 0), 0);
   const userVotedOption = poll.options.find((opt) => opt.votes?.includes(currentUserId));
 
   const handleOptionPress = (optionId) => {
+    if (!canVote) {
+      return; // Director không thể vote
+    }
     if (!userVotedOption) {
       onVote?.(poll.id, optionId);
     }
@@ -32,10 +35,10 @@ export default function PollCard({ poll, onVote, currentUserId }) {
               style={[
                 styles.option,
                 isSelected && styles.optionSelected,
-                userVotedOption && styles.optionDisabled,
+                (userVotedOption || !canVote) && styles.optionDisabled,
               ]}
               onPress={() => handleOptionPress(option.id)}
-              disabled={!!userVotedOption}
+              disabled={!!userVotedOption || !canVote}
             >
               <View style={styles.optionContent}>
                 <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
@@ -61,6 +64,7 @@ export default function PollCard({ poll, onVote, currentUserId }) {
 
       <Text style={styles.footer}>
         {totalVotes} {totalVotes === 1 ? "phiếu" : "phiếu"} • Tạo bởi {poll.createdByName}
+        {!canVote && " • Chỉ xem"}
       </Text>
     </View>
   );

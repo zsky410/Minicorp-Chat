@@ -10,8 +10,6 @@ import {
   orderBy,
   onSnapshot,
   serverTimestamp,
-  arrayUnion,
-  arrayRemove,
 } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -62,10 +60,13 @@ export const votePoll = async (pollId, optionId, userId) => {
       votes: opt.votes.filter((vote) => vote !== userId),
     }));
 
-    // Add vote to selected option
+    // Add vote to selected option (không dùng arrayUnion vì nó không hoạt động trong nested arrays)
     const optionIndex = updatedOptions.findIndex((opt) => opt.id === optionId);
     if (optionIndex >= 0) {
-      updatedOptions[optionIndex].votes = arrayUnion(userId);
+      // Kiểm tra xem user đã vote chưa để tránh duplicate
+      if (!updatedOptions[optionIndex].votes.includes(userId)) {
+        updatedOptions[optionIndex].votes.push(userId);
+      }
     }
 
     await updateDoc(pollRef, {
@@ -120,7 +121,11 @@ export const subscribeToPolls = (departmentId, callback) => {
       callback(polls);
     },
     (error) => {
-      console.error("Error subscribing to polls:", error);
+      // Chỉ log lỗi nếu không phải do permission (user đã logout)
+      if (error.code !== "permission-denied") {
+        console.error("Error subscribing to polls:", error);
+      }
+      // Trả về empty array khi có lỗi (bao gồm cả permission denied)
       callback([]);
     }
   );

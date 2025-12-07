@@ -10,7 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-export default function MessageInput({ onSend, onImagePick, onTyping, disabled = false }) {
+export default function MessageInput({ onSend, onImagePick, onTyping, disabled = false, placeholder = "Nhập tin nhắn..." }) {
   const [text, setText] = useState("");
   const typingTimeoutRef = useRef(null);
 
@@ -74,7 +74,7 @@ export default function MessageInput({ onSend, onImagePick, onTyping, disabled =
 
         <TextInput
           style={[styles.input, disabled && styles.inputDisabled]}
-          placeholder={disabled ? "Read-only mode" : "Nhập tin nhắn..."}
+          placeholder={placeholder}
           value={text}
           onChangeText={handleTextChange}
           multiline

@@ -131,6 +131,11 @@ export const deleteAnnouncement = async (announcementId) => {
 // Get unread count for user
 export const getUnreadCount = (announcements, userId, userDepartment) => {
   return announcements.filter((announcement) => {
+    // Không tính thông báo do mình tạo
+    if (announcement.createdBy === userId) {
+      return false;
+    }
+
     // Check if user has read it
     if (announcement.readBy?.includes(userId)) {
       return false;

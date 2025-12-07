@@ -2,7 +2,14 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-export default function DepartmentCard({ department, onPress, isManager = false, isDirector = false }) {
+export default function DepartmentCard({
+  department,
+  memberCount = 0,
+  unreadCount = 0,
+  onPress,
+  isManager = false,
+  isDirectorReadOnly = false
+}) {
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -16,8 +23,6 @@ export default function DepartmentCard({ department, onPress, isManager = false,
     return date.toLocaleDateString("vi-VN");
   };
 
-  const memberCount = department.members?.length || 0;
-
   return (
     <TouchableOpacity style={styles.container} onPress={onPress}>
       <View style={styles.iconContainer}>
@@ -30,12 +35,12 @@ export default function DepartmentCard({ department, onPress, isManager = false,
             <Text style={styles.name}>#{department.name}</Text>
             {isManager && (
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>Manager</Text>
+                <Text style={styles.badgeText}>⭐ Quản lý</Text>
               </View>
             )}
-            {isDirector && !isManager && (
+            {isDirectorReadOnly && !isManager && (
               <View style={[styles.badge, styles.directorBadge]}>
-                <Text style={styles.badgeText}>Director</Text>
+                <Text style={styles.badgeText}>👁️ Chỉ xem</Text>
               </View>
             )}
           </View>
@@ -60,6 +65,13 @@ export default function DepartmentCard({ department, onPress, isManager = false,
           <Text style={styles.memberCount}>
             {memberCount} thành viên
           </Text>
+          {unreadCount > 0 && (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadBadgeText}>
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
     </TouchableOpacity>
@@ -137,10 +149,25 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
   },
   memberCount: {
     fontSize: 12,
     color: "#999",
+  },
+  unreadBadge: {
+    backgroundColor: "#007AFF",
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 8,
+  },
+  unreadBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
   },
 });
 

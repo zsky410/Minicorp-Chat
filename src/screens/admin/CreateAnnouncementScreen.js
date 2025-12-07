@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -25,6 +25,9 @@ export default function CreateAnnouncementScreen({ navigation }) {
   const canCreateCompany = canCreateCompanyAnnouncement(user);
   const canCreateDept = canCreateAnnouncement(user, user?.department);
 
+  // Director chỉ có thể tạo thông báo toàn công ty
+  const isDirector = user?.role === "director";
+
   // Check permissions
   if (!canCreateDept && !canCreateCompany) {
     return (
@@ -41,6 +44,13 @@ export default function CreateAnnouncementScreen({ navigation }) {
       </View>
     );
   }
+
+  // Director: tự động set scope = "company"
+  useEffect(() => {
+    if (isDirector) {
+      setScope("company");
+    }
+  }, [isDirector]);
 
   const handleSubmit = async () => {
     // Validation
@@ -103,7 +113,7 @@ export default function CreateAnnouncementScreen({ navigation }) {
           textAlignVertical="top"
         />
 
-        {canCreateCompany && (
+        {canCreateCompany && !isDirector && (
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Phạm vi</Text>
             <View style={styles.scopeRow}>
@@ -143,9 +153,25 @@ export default function CreateAnnouncementScreen({ navigation }) {
           </View>
         )}
 
+        {isDirector && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Phạm vi</Text>
+            <View style={styles.scopeRow}>
+              <View style={[styles.scopeButton, styles.scopeButtonActive, { opacity: 1 }]}>
+                <Text style={[styles.scopeText, styles.scopeTextActive]}>
+                  Toàn công ty
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.helperText}>
+              Giám đốc chỉ có thể tạo thông báo toàn công ty
+            </Text>
+          </View>
+        )}
+
         <View style={styles.switchContainer}>
           <View>
-            <Text style={styles.switchLabel}>Thông báo khẩn cấp</Text>
+            <Text style={styles.switchLabel}>Thông báo quan trọng</Text>
             <Text style={styles.switchSubtext}>Sẽ được highlight màu đỏ</Text>
           </View>
           <Switch
@@ -238,6 +264,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#666",
     marginTop: 4,
+  },
+  helperText: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 8,
+    fontStyle: "italic",
   },
   inputGroup: {
     marginBottom: 20,

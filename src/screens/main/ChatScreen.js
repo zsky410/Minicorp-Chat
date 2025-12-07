@@ -254,10 +254,11 @@ export default function ChatScreen({ route, navigation }) {
 
   const renderMessage = ({ item, index }) => {
     const isOwn = item.senderId === user?.uid;
+    const previousMessage = index > 0 ? messages[index - 1] : null;
     return (
       <View>
-        {renderDateSeparator(item, messages[index - 1])}
-        <ChatBubble message={item} isOwn={isOwn} />
+        {renderDateSeparator(item, previousMessage)}
+        <ChatBubble message={item} isOwn={isOwn} previousMessage={previousMessage} />
       </View>
     );
   };

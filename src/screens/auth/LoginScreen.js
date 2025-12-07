@@ -75,9 +75,9 @@ export default function LoginScreen({ navigation }) {
           <Text style={styles.link}>Quên mật khẩu?</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => navigation.navigate("Register")}>
-          <Text style={styles.link}>Chưa có tài khoản? Đăng ký</Text>
-        </TouchableOpacity>
+        <Text style={styles.infoText}>
+          Tài khoản được tạo bởi Admin. Vui lòng liên hệ Admin để được cấp tài khoản.
+        </Text>
       </View>
     </KeyboardAvoidingView>
   );
@@ -133,6 +133,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 15,
     fontSize: 14,
+  },
+  infoText: {
+    color: "#666",
+    textAlign: "center",
+    marginTop: 20,
+    fontSize: 13,
+    fontStyle: "italic",
+    paddingHorizontal: 20,
   },
 });
 

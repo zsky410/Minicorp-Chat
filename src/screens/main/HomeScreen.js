@@ -48,7 +48,12 @@ export default function HomeScreen({ navigation }) {
       // Check if component is still mounted and user is still authenticated
       if (!isMounted || !auth.currentUser) return;
 
-      setConversations(data);
+      // Chỉ hiển thị chat 1-1 (type: "direct"), bỏ group chat và department chat
+      const directConversations = data.filter(
+        (conv) => conv.type === "direct" && conv.members?.length === 2
+      );
+
+      setConversations(directConversations);
       setLoading(false);
       setRefreshing(false);
     });

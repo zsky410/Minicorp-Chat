@@ -20,6 +20,7 @@ import {
   markAnnouncementAsRead,
 } from "../../services/announcementService";
 import { canCreateCompanyAnnouncement, canCreateAnnouncement } from "../../services/permissionService";
+import { subscribeToDepartments } from "../../services/departmentService";
 import AnnouncementCard from "../../components/AnnouncementCard";
 import LoadingScreen from "../../components/LoadingScreen";
 import EmptyState from "../../components/EmptyState";
@@ -37,25 +38,59 @@ export default function NotificationsScreen({ navigation }) {
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
+  // Departments map for displaying department names
+  const [departmentsMap, setDepartmentsMap] = useState({});
+
   const canCreateCompany = canCreateCompanyAnnouncement(user);
   const canCreateDept = canCreateAnnouncement(user, user?.department);
 
+  // Load departments
   useEffect(() => {
-    if (!user?.uid || !user?.department) {
+    const unsubscribeDepts = subscribeToDepartments((departments) => {
+      const map = {};
+      departments.forEach((dept) => {
+        map[dept.id] = dept.name;
+      });
+      setDepartmentsMap(map);
+    });
+
+    return () => unsubscribeDepts();
+  }, []);
+
+  useEffect(() => {
+    if (!user?.uid) {
       setLoading(false);
       return;
     }
 
     const unsubscribe = subscribeToAnnouncements((data) => {
-      // Filter announcements for user's department
-      const userAnnouncements = getUserAnnouncements(data, user.department);
+      // Filter announcements based on role
+      let userAnnouncements = [];
+
+      if (user.role === "director") {
+        // Director chỉ xem thông báo công ty (general)
+        userAnnouncements = getUserAnnouncements(data, "general");
+      } else if (user.department) {
+        // Employee và Manager xem thông báo phòng ban mình và thông báo công ty
+        const deptAnnouncements = getUserAnnouncements(data, user.department);
+        const companyAnnouncements = getUserAnnouncements(data, "general");
+        userAnnouncements = [...deptAnnouncements, ...companyAnnouncements];
+        // Remove duplicates
+        const uniqueIds = new Set();
+        userAnnouncements = userAnnouncements.filter((ann) => {
+          if (uniqueIds.has(ann.id)) return false;
+          uniqueIds.add(ann.id);
+          return true;
+        });
+      }
+
       setAllAnnouncements(userAnnouncements);
 
       // Calculate unread count
       const count = getUnreadCount(
         userAnnouncements,
         user.uid,
-        user.department
+        user.department || "general"
       );
       setUnreadCount(count);
 
@@ -64,7 +99,7 @@ export default function NotificationsScreen({ navigation }) {
     });
 
     return () => unsubscribe();
-  }, [user?.uid, user?.department]);
+  }, [user?.uid, user?.department, user?.role]);
 
   useEffect(() => {
     filterAnnouncements();
@@ -74,9 +109,11 @@ export default function NotificationsScreen({ navigation }) {
     if (filter === "all") {
       setDisplayedAnnouncements(allAnnouncements);
     } else {
-      // Show only unread
+      // Show only unread - không tính thông báo do mình tạo
       const unread = allAnnouncements.filter(
-        (announcement) => !announcement.readBy?.includes(user?.uid)
+        (announcement) =>
+          announcement.createdBy !== user?.uid &&
+          !announcement.readBy?.includes(user?.uid)
       );
       setDisplayedAnnouncements(unread);
     }
@@ -90,24 +127,31 @@ export default function NotificationsScreen({ navigation }) {
     setSelectedAnnouncement(announcement);
     setShowDetailModal(true);
 
-    // Mark as read
-    if (!announcement.readBy?.includes(user?.uid)) {
+    // Mark as read - chỉ đánh dấu nếu không phải do mình tạo
+    if (announcement.createdBy !== user?.uid && !announcement.readBy?.includes(user?.uid)) {
       await markAnnouncementAsRead(announcement.id, user.uid);
     }
   };
 
   const handleCreateAnnouncement = () => {
-    if (user?.role !== "admin") {
-      Alert.alert("Thông báo", "Chỉ Admin mới có quyền tạo thông báo");
-      return;
+    // Director: chỉ tạo thông báo công ty (trong "general")
+    // Manager: chỉ tạo thông báo phòng ban mình
+    if (canCreateCompany) {
+      // Director tạo thông báo công ty
+      navigation.navigate("CreateAnnouncement", { departmentId: "general", isCompanyWide: true });
+    } else if (canCreateDept) {
+      // Manager tạo thông báo phòng ban
+      navigation.navigate("CreateAnnouncement", { departmentId: user?.department });
+    } else {
+      Alert.alert("Không có quyền", "Bạn không có quyền tạo thông báo");
     }
-    navigation.navigate("CreateAnnouncement");
   };
 
   const renderAnnouncement = ({ item }) => (
     <AnnouncementCard
       announcement={item}
       userId={user?.uid}
+      departmentsMap={departmentsMap}
       onPress={() => handleAnnouncementPress(item)}
     />
   );

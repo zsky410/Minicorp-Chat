@@ -51,6 +51,11 @@ fastlane/test_output
 dist/
 web-build/
 
+# Web dashboard
+web/.next/
+web/out/
+web/node_modules/
+
 # Environment variables
 .env
 .env.local
@@ -58,6 +63,7 @@ web-build/
 
 # Firebase config (chứa credentials)
 firebase.config.js
+serviceAccountKey.json
 
 # Misc
 *.log

@@ -13,6 +13,7 @@ import {
   subscribeToDepartments,
   getUserDepartments,
 } from "../../services/departmentService";
+import { getAllUsers } from "../../services/userService";
 import {
   canViewAllDepartments,
   isManagerOfDepartment,
@@ -25,11 +26,33 @@ import EmptyState from "../../components/EmptyState";
 export default function DepartmentsScreen({ navigation }) {
   const { user } = useAuth();
   const [departments, setDepartments] = useState([]);
+  const [departmentMemberCounts, setDepartmentMemberCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [viewMode, setViewMode] = useState("my"); // "my" | "all" (for Director)
 
   const canViewAll = canViewAllDepartments(user);
+
+  // Load users để tính số thành viên
+  useEffect(() => {
+    const loadUsers = async () => {
+      const result = await getAllUsers();
+      if (result.success && result.data) {
+        // Tính số thành viên cho mỗi department
+        const counts = {};
+        result.data.forEach((u) => {
+          if (u.department) {
+            const deptKey = u.department.toLowerCase();
+            if (!counts[deptKey]) {
+              counts[deptKey] = 0;
+            }
+            counts[deptKey]++;
+          }
+        });
+        setDepartmentMemberCounts(counts);
+      }
+    };
+    loadUsers();
+  }, []);
 
   useEffect(() => {
     if (!user?.uid) {
@@ -43,18 +66,19 @@ export default function DepartmentsScreen({ navigation }) {
     const unsubscribe = subscribeToDepartments((allDepts) => {
       if (!isMounted) return;
 
-      // Filter based on role and view mode
+      // Filter based on role
       let filteredDepts = [];
 
-      if (canViewAll && viewMode === "all") {
-        // Director/Admin viewing all departments
+      if (canViewAll) {
+        // Director: xem tất cả phòng ban (read-only)
         filteredDepts = allDepts;
       } else {
-        // Employee/Manager or Director viewing "My Dept"
+        // Employee/Manager: chỉ thấy phòng ban mình
         const userDepartment = user?.department;
         filteredDepts = allDepts.filter(
           (dept) =>
             dept.id === "general" ||
+            dept.id === userDepartment?.toLowerCase() ||
             dept.name.toLowerCase() === userDepartment?.toLowerCase()
         );
       }
@@ -68,7 +92,7 @@ export default function DepartmentsScreen({ navigation }) {
       isMounted = false;
       unsubscribe();
     };
-  }, [user?.uid, user?.department, canViewAll, viewMode]);
+  }, [user?.uid, user?.department, canViewAll]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -85,14 +109,21 @@ export default function DepartmentsScreen({ navigation }) {
 
   const renderDepartment = ({ item }) => {
     const isManager = isManagerOfDepartment(user, item.id);
-    const isDirector = user?.role === "director" && viewMode === "all" && item.name !== user?.department;
+    // Director xem tất cả phòng ban ở chế độ read-only
+    const isDirectorReadOnly = user?.role === "director" && !isManager;
+
+    // Tính số thành viên từ users collection
+    const memberCount = departmentMemberCounts[item.id?.toLowerCase()] ||
+                       departmentMemberCounts[item.name?.toLowerCase()] || 0;
 
     return (
       <DepartmentCard
         department={item}
+        memberCount={memberCount}
+        unreadCount={item.unreadCount?.[user?.uid] || 0}
         onPress={() => handleDepartmentPress(item)}
         isManager={isManager}
-        isDirector={isDirector}
+        isDirectorReadOnly={isDirectorReadOnly}
       />
     );
   };
@@ -103,44 +134,6 @@ export default function DepartmentsScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Filter Toggle for Director */}
-      {canViewAll && (
-        <View style={styles.filterContainer}>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              viewMode === "my" && styles.filterButtonActive,
-            ]}
-            onPress={() => setViewMode("my")}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                viewMode === "my" && styles.filterTextActive,
-              ]}
-            >
-              Phòng ban của tôi
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              viewMode === "all" && styles.filterButtonActive,
-            ]}
-            onPress={() => setViewMode("all")}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                viewMode === "all" && styles.filterTextActive,
-              ]}
-            >
-              Tất cả phòng ban
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
       <FlatList
         data={departments}
         renderItem={renderDepartment}
@@ -156,8 +149,8 @@ export default function DepartmentsScreen({ navigation }) {
             icon="business-outline"
             title="Chưa có phòng ban"
             subtitle={
-              viewMode === "all"
-                ? "Không có phòng ban nào trong hệ thống"
+              canViewAll
+                ? "Không có phòng ban nào"
                 : "Bạn chưa được thêm vào phòng ban nào"
             }
           />
@@ -171,32 +164,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
-  },
-  filterContainer: {
-    flexDirection: "row",
-    padding: 10,
-    backgroundColor: "#f5f5f5",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-  },
-  filterButton: {
-    flex: 1,
-    paddingVertical: 10,
-    marginHorizontal: 5,
-    borderRadius: 8,
-    backgroundColor: "#fff",
-    alignItems: "center",
-  },
-  filterButtonActive: {
-    backgroundColor: "#007AFF",
-  },
-  filterText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#666",
-  },
-  filterTextActive: {
-    color: "#fff",
   },
   emptyContainer: {
     flexGrow: 1,

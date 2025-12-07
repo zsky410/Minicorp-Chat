@@ -128,11 +128,10 @@ export default function ProfileScreen({ navigation }) {
         <Text style={styles.email}>{user?.email}</Text>
 
         <View style={styles.badgeContainer}>
-          {user?.role && (
+          {user?.role && user?.role !== "admin" && (
             <View
               style={[
                 styles.infoBadge,
-                user?.role === "admin" && styles.adminBadge,
                 user?.role === "director" && styles.directorBadge,
                 user?.role === "manager" && styles.managerBadge,
               ]}

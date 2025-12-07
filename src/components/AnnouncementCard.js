@@ -2,9 +2,22 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-export default function AnnouncementCard({ announcement, userId, onPress }) {
-  const isRead = announcement.readBy?.includes(userId);
+export default function AnnouncementCard({ announcement, userId, departmentsMap = {}, onPress }) {
+  // Thông báo do mình tạo tự động coi như đã đọc
+  const isOwnAnnouncement = announcement.createdBy === userId;
+  const isRead = isOwnAnnouncement || announcement.readBy?.includes(userId);
   const isUrgent = announcement.priority === "urgent";
+
+  // Lấy tên phòng ban nếu là thông báo phòng ban
+  const getDepartmentName = () => {
+    if (announcement.scope === "department" && announcement.targetDepartments?.length > 0) {
+      const deptId = announcement.targetDepartments[0];
+      return departmentsMap[deptId] || deptId;
+    }
+    return null;
+  };
+
+  const departmentName = getDepartmentName();
 
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
@@ -41,6 +54,12 @@ export default function AnnouncementCard({ announcement, userId, onPress }) {
             <Text style={styles.companyText}>TOÀN CÔNG TY</Text>
           </View>
         )}
+        {departmentName && (
+          <View style={styles.departmentBadge}>
+            <Ionicons name="business-outline" size={14} color="#fff" />
+            <Text style={styles.departmentText}>{departmentName.toUpperCase()}</Text>
+          </View>
+        )}
       </View>
 
       {/* Title */}
@@ -65,7 +84,7 @@ export default function AnnouncementCard({ announcement, userId, onPress }) {
 
         <View style={styles.rightFooter}>
           <Text style={styles.time}>{formatTime(announcement.createdAt)}</Text>
-          {isRead && (
+          {isRead && !isOwnAnnouncement && (
             <View style={styles.readBadge}>
               <Ionicons name="checkmark-circle" size={14} color="#4CD964" />
               <Text style={styles.readText}>Đã đọc</Text>
@@ -130,6 +149,20 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   companyText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
+    marginLeft: 5,
+  },
+  departmentBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#34C759",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  departmentText: {
     color: "#fff",
     fontSize: 12,
     fontWeight: "bold",

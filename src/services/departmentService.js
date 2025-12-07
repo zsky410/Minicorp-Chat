@@ -13,8 +13,10 @@ import {
   onSnapshot,
   serverTimestamp,
   arrayUnion,
+  increment,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import { getAllUsers } from "./userService";
 
 // Initialize default departments
 export const initializeDefaultDepartments = async () => {
@@ -169,9 +171,11 @@ export const sendDepartmentMessage = async (
 
     const messageDoc = await addDoc(messagesRef, newMessage);
 
-    // Update department's lastMessage
+    // Update department's lastMessage and increment unreadCount for all members except sender
     const deptRef = doc(db, "departments", deptId);
-    await updateDoc(deptRef, {
+    const deptDoc = await getDoc(deptRef);
+
+    const updateData = {
       lastMessage: {
         text: messageText || "📷 Hình ảnh",
         senderId,
@@ -179,7 +183,27 @@ export const sendDepartmentMessage = async (
         timestamp: serverTimestamp(),
       },
       updatedAt: serverTimestamp(),
-    });
+    };
+
+    // Get all users in this department to increment their unreadCount
+    const usersResult = await getAllUsers();
+    if (usersResult.success) {
+      const deptName = deptDoc.data()?.name?.toLowerCase();
+      const deptUsers = usersResult.data.filter(
+        (u) =>
+          u.department && u.id !== senderId && (
+            u.department.toLowerCase() === deptId.toLowerCase() ||
+            u.department.toLowerCase() === deptName
+          )
+      );
+
+      // Increment unreadCount for each department member (except sender)
+      deptUsers.forEach((u) => {
+        updateData[`unreadCount.${u.id}`] = increment(1);
+      });
+    }
+
+    await updateDoc(deptRef, updateData);
 
     return { success: true, data: { id: messageDoc.id, ...newMessage } };
   } catch (error) {
@@ -240,6 +264,25 @@ export const getUserDepartments = async (user) => {
     return { success: true, data: userDepts };
   } catch (error) {
     console.error("Error getting user departments:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Mark department messages as read
+export const markDepartmentAsRead = async (deptId, userId) => {
+  try {
+    if (!deptId || !userId) {
+      console.warn("markDepartmentAsRead: Missing deptId or userId");
+      return { success: false, error: "Missing parameters" };
+    }
+
+    const deptRef = doc(db, "departments", deptId);
+    await updateDoc(deptRef, {
+      [`unreadCount.${userId}`]: 0,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error in markDepartmentAsRead:", error);
     return { success: false, error: error.message };
   }
 };
