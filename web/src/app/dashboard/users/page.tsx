@@ -29,6 +29,8 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Search as SearchIcon,
+  ArrowUpward as ArrowUpwardIcon,
+  ArrowDownward as ArrowDownwardIcon,
 } from "@mui/icons-material";
 import { getAllUsers, createUser, updateUser, deleteUser, User } from "@/lib/services/userService";
 import { getAllDepartments } from "@/lib/services/departmentService";
@@ -43,6 +45,8 @@ export default function UsersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState<string>("all");
   const [filterDept, setFilterDept] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [openDialog, setOpenDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [formData, setFormData] = useState({
@@ -64,7 +68,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     filterUsers();
-  }, [users, searchTerm, filterRole, filterDept]);
+  }, [users, searchTerm, filterRole, filterDept, sortBy, sortOrder]);
 
   const loadDepartments = async () => {
     try {
@@ -115,8 +119,67 @@ export default function UsersPage() {
 
     // Department filter
     if (filterDept !== "all") {
-      filtered = filtered.filter((user) => user.department === filterDept);
+      filtered = filtered.filter((user) => {
+        // Match by department ID or name
+        const userDept = user.department || "";
+        if (!userDept) return false;
+        const dept = departments.find(
+          (d) =>
+            d.id === filterDept ||
+            d.name === filterDept ||
+            userDept.toLowerCase() === filterDept.toLowerCase() ||
+            userDept.toLowerCase() === dept.id.toLowerCase() ||
+            userDept.toLowerCase() === dept.name.toLowerCase()
+        );
+        return !!dept;
+      });
     }
+
+    // Sort
+    filtered.sort((a, b) => {
+      let aValue: string | number = "";
+      let bValue: string | number = "";
+
+      switch (sortBy) {
+        case "name":
+          aValue = (a.name || "").toLowerCase();
+          bValue = (b.name || "").toLowerCase();
+          break;
+        case "email":
+          aValue = (a.email || "").toLowerCase();
+          bValue = (b.email || "").toLowerCase();
+          break;
+        case "role":
+          // Sort by role priority: admin > director > manager > employee
+          const rolePriority: Record<string, number> = {
+            admin: 4,
+            director: 3,
+            manager: 2,
+            employee: 1,
+          };
+          aValue = rolePriority[a.role || "employee"] || 0;
+          bValue = rolePriority[b.role || "employee"] || 0;
+          break;
+        case "department":
+          aValue = (a.department || "").toLowerCase();
+          bValue = (b.department || "").toLowerCase();
+          // Directors (no department) should be at the end
+          if (!aValue && bValue) return 1;
+          if (aValue && !bValue) return -1;
+          break;
+        case "status":
+          aValue = a.status === "online" ? 1 : 0;
+          bValue = b.status === "online" ? 1 : 0;
+          break;
+        default:
+          aValue = (a.name || "").toLowerCase();
+          bValue = (b.name || "").toLowerCase();
+      }
+
+      if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
 
     setFilteredUsers(filtered);
   };
@@ -337,44 +400,72 @@ export default function UsersPage() {
         </Box>
       </Box>
 
-      {/* Filters */}
-      <Box display="flex" gap={2} mb={3}>
-        <TextField
-          placeholder="Tìm kiếm..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          InputProps={{
-            startAdornment: <SearchIcon sx={{ mr: 1, color: "text.secondary" }} />,
-          }}
-          sx={{ flex: 1 }}
-        />
-        <TextField
-          select
-          label="Role"
-          value={filterRole}
-          onChange={(e) => setFilterRole(e.target.value)}
-          sx={{ minWidth: 150 }}
-        >
-          <MenuItem value="all">Tất cả</MenuItem>
-          <MenuItem value="employee">Nhân viên</MenuItem>
-          <MenuItem value="manager">Quản lý</MenuItem>
-          <MenuItem value="director">Giám đốc</MenuItem>
-          <MenuItem value="admin">Admin</MenuItem>
-        </TextField>
-        <TextField
-          select
-          label="Phòng ban"
-          value={filterDept}
-          onChange={(e) => setFilterDept(e.target.value)}
-          sx={{ minWidth: 150 }}
-        >
-          <MenuItem value="all">Tất cả</MenuItem>
-          {departments.map((dept) => (
-            <MenuItem key={dept.id} value={dept.id}>
-              {dept.name}
-            </MenuItem>
-          ))}
-        </TextField>
+      {/* Filters and Sort */}
+      <Box display="flex" flexDirection="column" gap={2} mb={3}>
+        <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
+          <TextField
+            placeholder="Tìm kiếm..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: <SearchIcon sx={{ mr: 1, color: "text.secondary" }} />,
+            }}
+            sx={{ flex: 1, minWidth: 200 }}
+          />
+          <TextField
+            select
+            label="Lọc theo Role"
+            value={filterRole}
+            onChange={(e) => setFilterRole(e.target.value)}
+            sx={{ minWidth: 150 }}
+          >
+            <MenuItem value="all">Tất cả</MenuItem>
+            <MenuItem value="employee">Nhân viên</MenuItem>
+            <MenuItem value="manager">Quản lý</MenuItem>
+            <MenuItem value="director">Giám đốc</MenuItem>
+            <MenuItem value="admin">Admin</MenuItem>
+          </TextField>
+          <TextField
+            select
+            label="Lọc theo Phòng ban"
+            value={filterDept}
+            onChange={(e) => setFilterDept(e.target.value)}
+            sx={{ minWidth: 180 }}
+          >
+            <MenuItem value="all">Tất cả</MenuItem>
+            {departments.map((dept) => (
+              <MenuItem key={dept.id} value={dept.id}>
+                {dept.icon || "📁"} {dept.name}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Box>
+        <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
+          <TextField
+            select
+            label="Sắp xếp theo"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            sx={{ minWidth: 150 }}
+          >
+            <MenuItem value="name">Tên</MenuItem>
+            <MenuItem value="email">Email</MenuItem>
+            <MenuItem value="role">Role</MenuItem>
+            <MenuItem value="department">Phòng ban</MenuItem>
+            <MenuItem value="status">Trạng thái</MenuItem>
+          </TextField>
+          <Button
+            variant="outlined"
+            startIcon={sortOrder === "asc" ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />}
+            onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+            sx={{ minWidth: 120 }}
+          >
+            {sortOrder === "asc" ? "Tăng dần" : "Giảm dần"}
+          </Button>
+          <Typography variant="body2" color="text.secondary" sx={{ ml: "auto" }}>
+            Hiển thị: <strong>{filteredUsers.length}</strong> / {users.length} users
+          </Typography>
+        </Box>
       </Box>
 
       {error && (

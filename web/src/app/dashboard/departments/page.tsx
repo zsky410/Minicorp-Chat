@@ -30,12 +30,14 @@ import {
   deleteDepartment,
   Department,
 } from "@/lib/services/departmentService";
-import { getAllUsers, User, getUsersByDepartment } from "@/lib/services/userService";
+import { getAllUsers, User } from "@/lib/services/userService";
 
 export default function DepartmentsPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [departmentMemberCounts, setDepartmentMemberCounts] = useState<Record<string, { employees: number; managers: number }>>({});
+  const [departmentMemberCounts, setDepartmentMemberCounts] = useState<
+    Record<string, { employees: number; managers: number }>
+  >({});
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingDept, setEditingDept] = useState<Department | null>(null);
@@ -53,10 +55,6 @@ export default function DepartmentsPage() {
 
   const icons = ["🏢", "💻", "📢", "💼", "👥", "📁", "🎯", "⚡"];
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
   const loadData = async () => {
     setLoading(true);
     const deptResult = await getAllDepartments();
@@ -66,19 +64,24 @@ export default function DepartmentsPage() {
       setDepartments(deptResult.data);
 
       // Tính số thành viên cho mỗi department
-      const counts: Record<string, { employees: number; managers: number }> = {};
-      for (const dept of deptResult.data) {
-        // Match department by ID or name (case-insensitive)
-        const deptUsers = userResult.data.filter(
-          (u) =>
-            u.department && (
-              u.department.toLowerCase() === dept.id.toLowerCase() ||
-              u.department.toLowerCase() === dept.name.toLowerCase()
-            )
-        );
-        const employees = deptUsers.filter((u) => u.role === "employee").length;
-        const managers = deptUsers.filter((u) => u.role === "manager").length;
-        counts[dept.id] = { employees, managers };
+      const counts: Record<string, { employees: number; managers: number }> =
+        {};
+      if (userResult.success && userResult.data) {
+        for (const dept of deptResult.data) {
+          // Match department by ID or name (case-insensitive)
+          const deptUsers = userResult.data.filter(
+            (u) =>
+              u.department &&
+              (u.department.toLowerCase() === dept.id.toLowerCase() ||
+                u.department.toLowerCase() === dept.name.toLowerCase())
+          );
+          const employees = deptUsers.filter(
+            (u) => u.role === "employee"
+          ).length;
+          const managers = deptUsers.filter((u) => u.role === "manager").length;
+          counts[dept.id] = { employees, managers };
+        }
+        setUsers(userResult.data);
       }
       setDepartmentMemberCounts(counts);
     } else {
@@ -91,6 +94,10 @@ export default function DepartmentsPage() {
 
     setLoading(false);
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const handleOpenDialog = (dept?: Department) => {
     if (dept) {
@@ -162,7 +169,7 @@ export default function DepartmentsPage() {
     const manager = users.find((u) => u.id === formData.managerId);
 
     if (editingDept) {
-      const updateData: any = {
+      const updateData: Partial<Department> = {
         name: formData.name,
         description: formData.description,
         icon: formData.icon,
@@ -174,9 +181,9 @@ export default function DepartmentsPage() {
         updateData.managerId = formData.managerId;
         updateData.managerName = manager?.name || "";
       } else {
-        // Nếu không có manager, set null để xóa field
-        updateData.managerId = null;
-        updateData.managerName = null;
+        // Nếu không có manager, set undefined để xóa field
+        updateData.managerId = undefined;
+        updateData.managerName = undefined;
       }
 
       const result = await updateDepartment(editingDept.id, updateData);
@@ -191,7 +198,15 @@ export default function DepartmentsPage() {
         setError(result.error || "Không thể cập nhật phòng ban");
       }
     } else {
-      const createData: any = {
+      const createData: {
+        id: string;
+        name: string;
+        description: string;
+        icon: string;
+        type: "public" | "department";
+        managerId?: string;
+        managerName?: string;
+      } = {
         id: formData.id.toLowerCase().replace(/\s+/g, "-"),
         name: formData.name,
         description: formData.description,
@@ -233,18 +248,14 @@ export default function DepartmentsPage() {
     }
   };
 
-  const getManagerName = (dept: Department) => {
-    if (dept.managerName) return dept.managerName;
-    if (dept.managerId) {
-      const manager = users.find((u) => u.id === dept.managerId);
-      return manager?.name || "N/A";
-    }
-    return "Chưa có";
-  };
-
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="400px"
+      >
         <CircularProgress />
       </Box>
     );
@@ -252,9 +263,18 @@ export default function DepartmentsPage() {
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+        mb={3}
+      >
         <Typography variant="h4">Quản lý Phòng ban</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenDialog()}>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => handleOpenDialog()}
+        >
           Thêm Phòng ban
         </Button>
       </Box>
@@ -285,58 +305,71 @@ export default function DepartmentsPage() {
         {departments.map((dept) => (
           <Card key={dept.id}>
             <CardContent>
-                <Box display="flex" justifyContent="space-between" alignItems="start" mb={2}>
-                  <Box>
-                    <Typography variant="h5" component="div">
-                      {dept.icon} {dept.name}
-                    </Typography>
-                    <Chip
-                      label={dept.type === "public" ? "Công khai" : "Phòng ban"}
-                      size="small"
-                      sx={{ mt: 1 }}
-                    />
-                  </Box>
-                  <Box>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleOpenDialog(dept)}
-                      color="primary"
-                    >
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDelete(dept.id)}
-                      color="error"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </Box>
-                </Box>
-                <Typography variant="body2" color="text.secondary" paragraph>
-                  {dept.description || "Không có mô tả"}
-                </Typography>
-                <Box display="flex" flexDirection="column" gap={1}>
-                  <Typography variant="body2">
-                    <strong>Quản lý:</strong> {getManagerName(dept)}
+              <Box
+                display="flex"
+                justifyContent="space-between"
+                alignItems="start"
+                mb={2}
+              >
+                <Box>
+                  <Typography variant="h5" component="div">
+                    {dept.icon} {dept.name}
                   </Typography>
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography variant="body2">
-                      <strong>Nhân viên:</strong> {departmentMemberCounts[dept.id]?.employees || 0}
-                    </Typography>
-                    <Typography variant="body2">
-                      <strong>Quản lý:</strong> {departmentMemberCounts[dept.id]?.managers || 0}
-                    </Typography>
-                  </Box>
+                  <Chip
+                    label={dept.type === "public" ? "Công khai" : "Phòng ban"}
+                    size="small"
+                    sx={{ mt: 1 }}
+                  />
                 </Box>
-              </CardContent>
+                <Box>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleOpenDialog(dept)}
+                    color="primary"
+                  >
+                    <EditIcon />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDelete(dept.id)}
+                    color="error"
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </Box>
+              </Box>
+              <Typography variant="body2" color="text.secondary" paragraph>
+                {dept.description || "Không có mô tả"}
+              </Typography>
+              <Box
+                display="flex"
+                justifyContent="space-between"
+                alignItems="center"
+              >
+                <Typography variant="body2">
+                  <strong>Nhân viên:</strong>{" "}
+                  {departmentMemberCounts[dept.id]?.employees || 0}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Quản lý:</strong>{" "}
+                  {departmentMemberCounts[dept.id]?.managers || 0}
+                </Typography>
+              </Box>
+            </CardContent>
           </Card>
         ))}
       </Box>
 
       {/* Create/Edit Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>{editingDept ? "Chỉnh sửa Phòng ban" : "Thêm Phòng ban mới"}</DialogTitle>
+      <Dialog
+        open={openDialog}
+        onClose={handleCloseDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          {editingDept ? "Chỉnh sửa Phòng ban" : "Thêm Phòng ban mới"}
+        </DialogTitle>
         <DialogContent>
           <Box display="flex" flexDirection="column" gap={2} pt={1}>
             {error && (
@@ -353,7 +386,9 @@ export default function DepartmentsPage() {
               <TextField
                 label="ID (tự động tạo từ tên nếu để trống)"
                 value={formData.id}
-                onChange={(e) => setFormData({ ...formData, id: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, id: e.target.value })
+                }
                 placeholder="engineering"
                 helperText="ID sẽ được tự động tạo từ tên nếu để trống"
                 fullWidth
@@ -362,14 +397,18 @@ export default function DepartmentsPage() {
             <TextField
               label="Tên phòng ban"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, name: e.target.value })
+              }
               required
               fullWidth
             />
             <TextField
               label="Mô tả"
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
               multiline
               rows={3}
               fullWidth
@@ -378,7 +417,9 @@ export default function DepartmentsPage() {
               select
               label="Icon"
               value={formData.icon}
-              onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, icon: e.target.value })
+              }
               fullWidth
             >
               {icons.map((icon) => (
@@ -425,7 +466,11 @@ export default function DepartmentsPage() {
                     (d) => d.managerId === user.id && d.id !== editingDept?.id
                   );
                   return (
-                    <MenuItem key={user.id} value={user.id} disabled={!!isManagerElsewhere}>
+                    <MenuItem
+                      key={user.id}
+                      value={user.id}
+                      disabled={!!isManagerElsewhere}
+                    >
                       {user.name} ({user.email})
                       {isManagerElsewhere && " - Đã quản lý phòng ban khác"}
                     </MenuItem>
