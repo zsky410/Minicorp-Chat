@@ -2,11 +2,8 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import Avatar from "./Avatar";
 
-export default function ConversationItem({
-  conversation,
-  currentUserId,
-  onPress,
-}) {
+const ConversationItem = React.memo(
+  ({ conversation, currentUserId, onPress }) => {
   // Get other user's info (for direct chats)
   const otherUserId = conversation.members?.find((id) => id !== currentUserId);
   const otherUser = conversation.memberDetails?.[otherUserId];
@@ -61,7 +58,20 @@ export default function ConversationItem({
       </View>
     </TouchableOpacity>
   );
-}
+  },
+  (prevProps, nextProps) => {
+    // Custom comparison for optimization
+    return (
+      prevProps.conversation.id === nextProps.conversation.id &&
+      prevProps.conversation.updatedAt === nextProps.conversation.updatedAt &&
+      prevProps.conversation.unreadCount?.[nextProps.currentUserId] ===
+        nextProps.conversation.unreadCount?.[nextProps.currentUserId] &&
+      prevProps.currentUserId === nextProps.currentUserId
+    );
+  }
+);
+
+export default ConversationItem;
 
 const styles = StyleSheet.create({
   container: {

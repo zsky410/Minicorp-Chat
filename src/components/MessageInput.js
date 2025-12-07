@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   TextInput,
@@ -8,14 +8,55 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 
-export default function MessageInput({ onSend, onImagePick }) {
+export default function MessageInput({ onSend, onImagePick, onTyping }) {
   const [text, setText] = useState("");
+  const typingTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    // Clear timeout on unmount
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleTextChange = (value) => {
+    setText(value);
+
+    if (onTyping) {
+      // User is typing
+      onTyping(true);
+
+      // Clear previous timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      // Set timeout to stop typing after 3 seconds
+      typingTimeoutRef.current = setTimeout(() => {
+        onTyping(false);
+      }, 3000);
+    }
+  };
 
   const handleSend = () => {
     if (text.trim()) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       onSend(text.trim());
       setText("");
+
+      // Stop typing
+      if (onTyping) {
+        onTyping(false);
+      }
+
+      // Clear timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
     }
   };
 
@@ -35,7 +76,7 @@ export default function MessageInput({ onSend, onImagePick }) {
           style={styles.input}
           placeholder="Nhập tin nhắn..."
           value={text}
-          onChangeText={setText}
+          onChangeText={handleTextChange}
           multiline
           maxLength={1000}
         />

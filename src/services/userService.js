@@ -8,8 +8,7 @@ import {
   where,
   serverTimestamp,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "./firebase";
+import { db } from "./firebase";
 
 export const getAllUsers = async () => {
   try {
@@ -47,10 +46,25 @@ export const getUserById = async (userId) => {
 export const updateUserProfile = async (userId, data) => {
   try {
     const userRef = doc(db, "users", userId);
+
     await updateDoc(userRef, {
       ...data,
       updatedAt: serverTimestamp(),
     });
+
+    // If name, avatar, or department changed, update conversations
+    if (data.name || data.avatar || data.department) {
+      const userDoc = await getDoc(userRef);
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const { updateUserInConversations } = require("./chatService");
+        await updateUserInConversations(userId, {
+          name: userData.name,
+          avatar: userData.avatar || "",
+          department: userData.department || "",
+        });
+      }
+    }
 
     return { success: true };
   } catch (error) {
@@ -61,28 +75,39 @@ export const updateUserProfile = async (userId, data) => {
 
 export const uploadAvatar = async (userId, imageUri) => {
   try {
-    if (!storage) {
-      return {
-        success: false,
-        error: "Storage chưa được enable. Vui lòng upgrade Firebase plan.",
-      };
+    // Use storageService to convert to base64
+    const { uploadAvatarImage } = require("./storageService");
+    const result = await uploadAvatarImage(userId, imageUri);
+
+    if (!result.success) {
+      return result;
     }
 
-    // Convert image to blob
-    const response = await fetch(imageUri);
-    const blob = await response.blob();
+    // Update user document with base64 data URI
+    const base64DataUri = `data:image/jpeg;base64,${result.data}`;
+    await updateUserProfile(userId, { avatar: base64DataUri });
 
-    // Upload to Storage
-    const storageRef = ref(storage, `avatars/${userId}.jpg`);
-    await uploadBytes(storageRef, blob);
+    // Get updated user data to update conversations
+    const userRef = doc(db, "users", userId);
+    const userDoc = await getDoc(userRef);
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      console.log("Updating conversations with new avatar for user:", userId);
+      // Update memberDetails in all conversations
+      const { updateUserInConversations } = require("./chatService");
+      const updateResult = await updateUserInConversations(userId, {
+        name: userData.name,
+        avatar: base64DataUri,
+        department: userData.department || "",
+      });
 
-    // Get download URL
-    const downloadURL = await getDownloadURL(storageRef);
+      if (!updateResult.success) {
+        console.error("Failed to update conversations:", updateResult.error);
+        // Don't fail the whole operation, just log the error
+      }
+    }
 
-    // Update user document
-    await updateUserProfile(userId, { avatar: downloadURL });
-
-    return { success: true, data: downloadURL };
+    return { success: true, data: base64DataUri };
   } catch (error) {
     console.error("Error in uploadAvatar:", error);
     return { success: false, error: error.message };

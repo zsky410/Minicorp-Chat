@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,8 @@ import {
 import { auth } from "../../services/firebase";
 import ConversationItem from "../../components/ConversationItem";
 import UserListItem from "../../components/UserListItem";
+import LoadingScreen from "../../components/LoadingScreen";
+import EmptyState from "../../components/EmptyState";
 
 export default function HomeScreen({ navigation }) {
   const { user } = useAuth();
@@ -74,69 +76,76 @@ export default function HomeScreen({ navigation }) {
     }
   };
 
-  const handleStartChat = async (otherUser) => {
-    if (!user?.uid) {
-      console.error("User not authenticated");
-      return;
-    }
+  const handleStartChat = useCallback(
+    async (otherUser) => {
+      if (!user?.uid) {
+        console.error("User not authenticated");
+        return;
+      }
 
-    setShowSearchModal(false);
-    setSearchQuery("");
-    setSearchResults([]);
+      setShowSearchModal(false);
+      setSearchQuery("");
+      setSearchResults([]);
 
-    // Get or create conversation
-    const result = await getOrCreateConversation(
-      user.uid,
-      otherUser.id,
-      otherUser,
-      user // Pass current user data
-    );
+      // Get or create conversation
+      const result = await getOrCreateConversation(
+        user.uid,
+        otherUser.id,
+        otherUser,
+        user // Pass current user data
+      );
 
-    if (result.success) {
-      navigation.navigate("Chat", {
-        conversationId: result.data.id,
-        otherUserId: otherUser.id,
-        userName: otherUser.name,
-        userAvatar: otherUser.avatar,
-      });
-    } else {
-      console.error("Failed to create conversation:", result.error);
-      // You can add Alert here to show error to user
-    }
-  };
-
-  const renderConversation = ({ item }) => {
-    if (!user?.uid) return null;
-
-    return (
-      <ConversationItem
-        conversation={item}
-        currentUserId={user.uid}
-        onPress={() => {
-          const otherUserId = item.members.find((id) => id !== user.uid);
-          const otherUser = item.memberDetails[otherUserId];
-
-          navigation.navigate("Chat", {
-            conversationId: item.id,
-            otherUserId,
-            userName: otherUser?.name,
-            userAvatar: otherUser?.avatar,
-          });
-        }}
-      />
-    );
-  };
-
-  const renderSearchResult = ({ item }) => (
-    <UserListItem user={item} onPress={() => handleStartChat(item)} />
+      if (result.success) {
+        navigation.navigate("Chat", {
+          conversationId: result.data.id,
+          otherUserId: otherUser.id,
+          userName: otherUser.name,
+          userAvatar: otherUser.avatar,
+        });
+      } else {
+        console.error("Failed to create conversation:", result.error);
+        // You can add Alert here to show error to user
+      }
+    },
+    [user, navigation]
   );
 
+  const renderConversation = useCallback(
+    ({ item }) => {
+      if (!user?.uid) return null;
+
+      return (
+        <ConversationItem
+          conversation={item}
+          currentUserId={user.uid}
+          onPress={() => {
+            const otherUserId = item.members.find((id) => id !== user.uid);
+            const otherUser = item.memberDetails[otherUserId];
+
+            navigation.navigate("Chat", {
+              conversationId: item.id,
+              otherUserId,
+              userName: otherUser?.name,
+              userAvatar: otherUser?.avatar,
+            });
+          }}
+        />
+      );
+    },
+    [user?.uid, navigation]
+  );
+
+  const renderSearchResult = useCallback(
+    ({ item }) => (
+      <UserListItem user={item} onPress={() => handleStartChat(item)} />
+    ),
+    [handleStartChat]
+  );
+
+  const keyExtractor = useCallback((item) => item.id, []);
+
   if (loading || !user?.uid) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-      </View>
-    );
+    return <LoadingScreen message="Đang tải cuộc trò chuyện..." />;
   }
 
   return (
@@ -144,21 +153,23 @@ export default function HomeScreen({ navigation }) {
       <FlatList
         data={conversations}
         renderItem={renderConversation}
-        keyExtractor={(item) => item.id}
+        keyExtractor={keyExtractor}
         contentContainerStyle={
           conversations.length === 0 && styles.emptyContainer
         }
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
+        windowSize={10}
+        maxToRenderPerBatch={10}
+        removeClippedSubviews={true}
+        initialNumToRender={15}
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="chatbubbles-outline" size={80} color="#ccc" />
-            <Text style={styles.emptyText}>Chưa có cuộc trò chuyện</Text>
-            <Text style={styles.emptySubtext}>
-              Nhấn nút + để bắt đầu chat
-            </Text>
-          </View>
+          <EmptyState
+            icon="chatbubbles-outline"
+            title="Chưa có cuộc trò chuyện"
+            subtitle="Nhấn nút + để bắt đầu chat"
+          />
         }
       />
 
@@ -216,10 +227,11 @@ export default function HomeScreen({ navigation }) {
               }
               ListEmptyComponent={
                 searchQuery.length >= 2 && (
-                  <View style={styles.emptyState}>
-                    <Ionicons name="search-outline" size={60} color="#ccc" />
-                    <Text style={styles.emptyText}>Không tìm thấy kết quả</Text>
-                  </View>
+                  <EmptyState
+                    icon="search-outline"
+                    title="Không tìm thấy kết quả"
+                    subtitle="Thử tìm kiếm với từ khóa khác"
+                  />
                 )
               }
             />
@@ -235,30 +247,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff",
   },
-  centerContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   emptyContainer: {
     flexGrow: 1,
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 40,
-  },
-  emptyText: {
-    fontSize: 18,
-    color: "#666",
-    marginTop: 20,
-    fontWeight: "500",
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: "#999",
-    marginTop: 8,
   },
   fab: {
     position: "absolute",

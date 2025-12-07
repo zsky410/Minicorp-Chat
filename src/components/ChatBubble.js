@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, Image, StyleSheet } from "react-native";
 
-export default function ChatBubble({ message, isOwn }) {
+const ChatBubble = React.memo(({ message, isOwn }) => {
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -17,8 +17,13 @@ export default function ChatBubble({ message, isOwn }) {
     >
       {!isOwn && <Text style={styles.senderName}>{message.senderName}</Text>}
 
-      {message.imageUrl && (
-        <Image source={{ uri: message.imageUrl }} style={styles.image} />
+      {message.imageBase64 && (
+        <Image
+          source={{
+            uri: `data:image/jpeg;base64,${message.imageBase64}`,
+          }}
+          style={styles.image}
+        />
       )}
 
       {message.text && (
@@ -38,7 +43,11 @@ export default function ChatBubble({ message, isOwn }) {
       </Text>
     </View>
   );
-}
+});
+
+ChatBubble.displayName = "ChatBubble";
+
+export default ChatBubble;
 
 const styles = StyleSheet.create({
   container: {

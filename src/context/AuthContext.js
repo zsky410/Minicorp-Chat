@@ -7,7 +7,7 @@ import {
   resetPassword,
 } from "../services/authService";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "../services/firebase";
+import { db, auth } from "../services/firebase";
 
 const AuthContext = createContext();
 
@@ -48,6 +48,16 @@ export const AuthProvider = ({ children }) => {
     return await resetPassword(email);
   };
 
+  const refreshUser = async () => {
+    const firebaseUser = auth.currentUser;
+    if (firebaseUser) {
+      const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+      if (userDoc.exists()) {
+        setUser({ ...firebaseUser, ...userDoc.data() });
+      }
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -58,6 +68,7 @@ export const AuthProvider = ({ children }) => {
         register,
         logout,
         resetPassword: resetPass,
+        refreshUser,
       }}
     >
       {children}

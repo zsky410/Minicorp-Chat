@@ -22,9 +22,6 @@ export default function UserListItem({
         {showDepartment && (
           <Text style={styles.department}>{user.department}</Text>
         )}
-        {user.position && (
-          <Text style={styles.position}>{user.position}</Text>
-        )}
       </View>
 
       <View style={styles.statusContainer}>
@@ -66,11 +63,6 @@ const styles = StyleSheet.create({
   department: {
     fontSize: 14,
     color: "#007AFF",
-    marginBottom: 2,
-  },
-  position: {
-    fontSize: 13,
-    color: "#666",
   },
   statusContainer: {
     flexDirection: "row",

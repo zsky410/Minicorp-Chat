@@ -10,12 +10,13 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 
 export default function ForgotPasswordScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [sent, setSent] = useState(false);
   const { resetPassword } = useAuth();
 
   const handleResetPassword = async () => {
@@ -34,15 +35,29 @@ export default function ForgotPasswordScreen({ navigation }) {
     setLoading(false);
 
     if (result.success) {
-      setSuccess(true);
-      Alert.alert(
-        "Thành công",
-        "Email đặt lại mật khẩu đã được gửi. Vui lòng kiểm tra hộp thư của bạn."
-      );
+      setSent(true);
+      setTimeout(() => {
+        navigation.goBack();
+      }, 3000);
     } else {
       Alert.alert("Lỗi", result.error);
     }
   };
+
+  if (sent) {
+    return (
+      <View style={styles.centerContainer}>
+        <Ionicons name="checkmark-circle" size={80} color="#4CD964" />
+        <Text style={styles.successTitle}>Đã gửi!</Text>
+        <Text style={styles.successText}>
+          Vui lòng kiểm tra email để reset mật khẩu
+        </Text>
+        <Text style={styles.successSubtext}>
+          Tự động quay lại sau 3 giây...
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -50,9 +65,16 @@ export default function ForgotPasswordScreen({ navigation }) {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <View style={styles.content}>
-        <Text style={styles.title}>Quên mật khẩu</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#007AFF" />
+        </TouchableOpacity>
+
+        <Text style={styles.title}>Quên mật khẩu?</Text>
         <Text style={styles.subtitle}>
-          Nhập email của bạn để nhận link đặt lại mật khẩu
+          Nhập email để nhận link đặt lại mật khẩu
         </Text>
 
         <TextInput
@@ -62,20 +84,17 @@ export default function ForgotPasswordScreen({ navigation }) {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
-          editable={!success}
         />
 
         <TouchableOpacity
           style={styles.button}
           onPress={handleResetPassword}
-          disabled={loading || success}
+          disabled={loading}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>
-              {success ? "Đã gửi email" : "Gửi link reset"}
-            </Text>
+            <Text style={styles.buttonText}>Gửi link reset</Text>
           )}
         </TouchableOpacity>
 
@@ -94,8 +113,21 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: "center",
     padding: 20,
+    justifyContent: "center",
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 40,
+    backgroundColor: "#fff",
+  },
+  backButton: {
+    position: "absolute",
+    top: 50,
+    left: 20,
+    zIndex: 1,
   },
   title: {
     fontSize: 28,
@@ -116,7 +148,7 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
     borderRadius: 8,
     paddingHorizontal: 15,
-    marginBottom: 15,
+    marginBottom: 20,
     fontSize: 16,
   },
   button: {
@@ -125,7 +157,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 10,
   },
   buttonText: {
     color: "#fff",
@@ -137,6 +168,23 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 15,
     fontSize: 14,
+  },
+  successTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  successText: {
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 5,
+  },
+  successSubtext: {
+    fontSize: 14,
+    color: "#999",
+    textAlign: "center",
   },
 });
 

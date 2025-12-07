@@ -182,7 +182,7 @@ export const sendMessage = async (
   senderId,
   senderData,
   messageText,
-  imageUrl = null
+  imageBase64 = null // Changed from imageUrl to imageBase64
 ) => {
   try {
     const messagesRef = collection(
@@ -197,8 +197,8 @@ export const sendMessage = async (
       senderName: senderData.name,
       senderAvatar: senderData.avatar,
       text: messageText,
-      imageUrl,
-      type: imageUrl ? "image" : "text",
+      imageBase64: imageBase64 || null, // Store base64 string in Firestore
+      type: imageBase64 ? "image" : "text",
       status: "sent",
       createdAt: serverTimestamp(),
     };
@@ -303,6 +303,51 @@ export const markAsRead = async (conversationId, userId) => {
   }
 };
 
+// Update memberDetails in all conversations for a user
+// This is called when user updates their profile (avatar, name, etc.)
+export const updateUserInConversations = async (userId, userData) => {
+  try {
+    console.log("Updating user in conversations:", userId, userData);
+
+    // Get all conversations where user is a member
+    const q = query(
+      collection(db, "conversations"),
+      where("members", "array-contains", userId)
+    );
+
+    const querySnapshot = await getDocs(q);
+    console.log(`Found ${querySnapshot.size} conversations to update`);
+
+    const updatePromises = [];
+
+    querySnapshot.forEach((docSnapshot) => {
+      const conversationRef = doc(db, "conversations", docSnapshot.id);
+      console.log(`Updating conversation ${docSnapshot.id} with new avatar`);
+      updatePromises.push(
+        updateDoc(conversationRef, {
+          [`memberDetails.${userId}`]: {
+            name: userData.name,
+            avatar: userData.avatar || "",
+            department: userData.department || "",
+          },
+        })
+      );
+    });
+
+    await Promise.all(updatePromises);
+    console.log("Successfully updated all conversations");
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating user in conversations:", error);
+    console.error("Error details:", {
+      code: error.code,
+      message: error.message,
+      userId,
+    });
+    return { success: false, error: error.message };
+  }
+};
+
 // Search users (for starting new chat)
 export const searchUsers = async (searchTerm, currentUserId) => {
   try {
@@ -323,6 +368,62 @@ export const searchUsers = async (searchTerm, currentUserId) => {
   } catch (error) {
     console.error("Error in searchUsers:", error);
     return { success: false, error: error.message };
+  }
+};
+
+// Update typing status
+export const updateTypingStatus = async (
+  conversationId,
+  userId,
+  isTyping
+) => {
+  try {
+    if (!conversationId || !userId) return { success: false };
+
+    const conversationRef = doc(db, "conversations", conversationId);
+    await updateDoc(conversationRef, {
+      [`typing.${userId}`]: isTyping ? serverTimestamp() : null,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating typing status:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Subscribe to typing status
+export const subscribeToTyping = (conversationId, callback) => {
+  try {
+    const conversationRef = doc(db, "conversations", conversationId);
+
+    return onSnapshot(
+      conversationRef,
+      (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const typing = docSnapshot.data().typing || {};
+          // Check if typing is recent (within last 3 seconds)
+          const now = Date.now();
+          const typingStatus = {};
+          Object.keys(typing).forEach((userId) => {
+            const typingTime = typing[userId];
+            if (typingTime) {
+              const timestamp = typingTime.toMillis
+                ? typingTime.toMillis()
+                : typingTime;
+              const isRecent = now - timestamp < 3000; // 3 seconds
+              typingStatus[userId] = isRecent;
+            }
+          });
+          callback(typingStatus);
+        }
+      },
+      (error) => {
+        console.error("Error subscribing to typing:", error);
+      }
+    );
+  } catch (error) {
+    console.error("Error in subscribeToTyping:", error);
+    return () => {}; // Return empty unsubscribe function
   }
 };
 

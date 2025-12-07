@@ -35,7 +35,6 @@ export const signUp = async (email, password, name, department, phone) => {
       name,
       department,
       phone,
-      position: "",
       avatar: "",
       role: "member",
       status: "online",
