@@ -12,20 +12,25 @@ import {
 } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 import { createAnnouncement } from "../../services/announcementService";
+import { canCreateCompanyAnnouncement, canCreateAnnouncement } from "../../services/permissionService";
 
 export default function CreateAnnouncementScreen({ navigation }) {
   const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isUrgent, setIsUrgent] = useState(false);
+  const [scope, setScope] = useState("department"); // "department" | "company"
   const [loading, setLoading] = useState(false);
 
-  // Check if user is admin
-  if (user?.role !== "admin") {
+  const canCreateCompany = canCreateCompanyAnnouncement(user);
+  const canCreateDept = canCreateAnnouncement(user, user?.department);
+
+  // Check permissions
+  if (!canCreateDept && !canCreateCompany) {
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.errorText}>
-          Bạn không có quyền truy cập trang này
+          Bạn không có quyền tạo thông báo
         </Text>
         <TouchableOpacity
           style={styles.button}
@@ -55,7 +60,8 @@ export default function CreateAnnouncementScreen({ navigation }) {
       title: title.trim(),
       content: content.trim(),
       priority: isUrgent ? "urgent" : "normal",
-      targetDepartments: [], // Empty = for all
+      scope: scope, // "department" | "company"
+      targetDepartments: scope === "company" ? [] : [user.department], // Empty = for all, or user's department
     });
 
     setLoading(false);
@@ -96,6 +102,46 @@ export default function CreateAnnouncementScreen({ navigation }) {
           maxLength={1000}
           textAlignVertical="top"
         />
+
+        {canCreateCompany && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Phạm vi</Text>
+            <View style={styles.scopeRow}>
+              <TouchableOpacity
+                style={[
+                  styles.scopeButton,
+                  scope === "department" && styles.scopeButtonActive,
+                ]}
+                onPress={() => setScope("department")}
+              >
+                <Text
+                  style={[
+                    styles.scopeText,
+                    scope === "department" && styles.scopeTextActive,
+                  ]}
+                >
+                  Phòng ban
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.scopeButton,
+                  scope === "company" && styles.scopeButtonActive,
+                ]}
+                onPress={() => setScope("company")}
+              >
+                <Text
+                  style={[
+                    styles.scopeText,
+                    scope === "company" && styles.scopeTextActive,
+                  ]}
+                >
+                  Toàn công ty
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         <View style={styles.switchContainer}>
           <View>
@@ -192,6 +238,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#666",
     marginTop: 4,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  scopeRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  scopeButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  scopeButtonActive: {
+    backgroundColor: "#007AFF",
+    borderColor: "#007AFF",
+  },
+  scopeText: {
+    fontSize: 15,
+    color: "#666",
+    fontWeight: "600",
+  },
+  scopeTextActive: {
+    color: "#fff",
   },
   buttonContainer: {
     flexDirection: "row",

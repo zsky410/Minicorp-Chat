@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "../../context/AuthContext";
 import { uploadAvatar } from "../../services/userService";
+import { getRoleDisplayName } from "../../services/permissionService";
 import Avatar from "../../components/Avatar";
 
 export default function ProfileScreen({ navigation }) {
@@ -127,9 +128,18 @@ export default function ProfileScreen({ navigation }) {
         <Text style={styles.email}>{user?.email}</Text>
 
         <View style={styles.badgeContainer}>
-          {user?.role === "admin" && (
-            <View style={[styles.infoBadge, styles.adminBadge]}>
-              <Text style={styles.badgeText}>Admin</Text>
+          {user?.role && (
+            <View
+              style={[
+                styles.infoBadge,
+                user?.role === "admin" && styles.adminBadge,
+                user?.role === "director" && styles.directorBadge,
+                user?.role === "manager" && styles.managerBadge,
+              ]}
+            >
+              <Text style={styles.badgeText}>
+                {getRoleDisplayName(user.role)}
+              </Text>
             </View>
           )}
         </View>
@@ -276,7 +286,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   adminBadge: {
+    backgroundColor: "#FF3B30",
+  },
+  directorBadge: {
     backgroundColor: "#FF9500",
+  },
+  managerBadge: {
+    backgroundColor: "#007AFF",
   },
   badgeText: {
     color: "#fff",

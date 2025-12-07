@@ -27,13 +27,21 @@ export default function AnnouncementCard({ announcement, userId, onPress }) {
       ]}
       onPress={onPress}
     >
-      {/* Priority Badge */}
-      {isUrgent && (
-        <View style={styles.urgentBadge}>
-          <Ionicons name="warning" size={16} color="#fff" />
-          <Text style={styles.urgentText}>KHẨN CẤP</Text>
-        </View>
-      )}
+      {/* Priority and Scope Badges */}
+      <View style={styles.badgeRow}>
+        {isUrgent && (
+          <View style={styles.urgentBadge}>
+            <Ionicons name="warning" size={16} color="#fff" />
+            <Text style={styles.urgentText}>KHẨN CẤP</Text>
+          </View>
+        )}
+        {announcement.scope === "company" && (
+          <View style={styles.companyBadge}>
+            <Ionicons name="business" size={14} color="#fff" />
+            <Text style={styles.companyText}>TOÀN CÔNG TY</Text>
+          </View>
+        )}
+      </View>
 
       {/* Title */}
       <Text
@@ -93,6 +101,12 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     backgroundColor: "#f9f9f9",
   },
+  badgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 10,
+  },
   urgentBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -100,10 +114,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
-    alignSelf: "flex-start",
-    marginBottom: 10,
   },
   urgentText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
+    marginLeft: 5,
+  },
+  companyBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#5856D6",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  companyText: {
     color: "#fff",
     fontSize: 12,
     fontWeight: "bold",

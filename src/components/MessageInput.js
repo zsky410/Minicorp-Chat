@@ -10,7 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-export default function MessageInput({ onSend, onImagePick, onTyping }) {
+export default function MessageInput({ onSend, onImagePick, onTyping, disabled = false }) {
   const [text, setText] = useState("");
   const typingTimeoutRef = useRef(null);
 
@@ -73,18 +73,19 @@ export default function MessageInput({ onSend, onImagePick, onTyping }) {
         )}
 
         <TextInput
-          style={styles.input}
-          placeholder="Nhập tin nhắn..."
+          style={[styles.input, disabled && styles.inputDisabled]}
+          placeholder={disabled ? "Read-only mode" : "Nhập tin nhắn..."}
           value={text}
           onChangeText={handleTextChange}
           multiline
           maxLength={1000}
+          editable={!disabled}
         />
 
         <TouchableOpacity
-          style={[styles.sendButton, !text.trim() && styles.sendButtonDisabled]}
+          style={[styles.sendButton, (!text.trim() || disabled) && styles.sendButtonDisabled]}
           onPress={handleSend}
-          disabled={!text.trim()}
+          disabled={!text.trim() || disabled}
         >
           <Ionicons
             name="send"
@@ -134,6 +135,10 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     backgroundColor: "#e0e0e0",
+  },
+  inputDisabled: {
+    backgroundColor: "#f5f5f5",
+    color: "#999",
   },
 });
 

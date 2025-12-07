@@ -8,6 +8,7 @@ import {
 } from "../services/authService";
 import { doc, getDoc } from "firebase/firestore";
 import { db, auth } from "../services/firebase";
+import { getUserPermissions } from "../services/permissionService";
 
 const AuthContext = createContext();
 
@@ -21,7 +22,14 @@ export const AuthProvider = ({ children }) => {
         // Fetch additional user data from Firestore
         const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
         if (userDoc.exists()) {
-          setUser({ ...firebaseUser, ...userDoc.data() });
+          const userData = { ...firebaseUser, ...userDoc.data() };
+          // Map "member" to "employee" for backward compatibility
+          if (userData.role === "member") {
+            userData.role = "employee";
+          }
+          // Calculate and add permissions
+          userData.permissions = getUserPermissions(userData);
+          setUser(userData);
         }
       } else {
         setUser(null);
@@ -53,7 +61,14 @@ export const AuthProvider = ({ children }) => {
     if (firebaseUser) {
       const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
       if (userDoc.exists()) {
-        setUser({ ...firebaseUser, ...userDoc.data() });
+        const userData = { ...firebaseUser, ...userDoc.data() };
+        // Map "member" to "employee" for backward compatibility
+        if (userData.role === "member") {
+          userData.role = "employee";
+        }
+        // Calculate and add permissions
+        userData.permissions = getUserPermissions(userData);
+        setUser(userData);
       }
     }
   };

@@ -36,7 +36,8 @@ export const signUp = async (email, password, name, department, phone) => {
       department,
       phone,
       avatar: "",
-      role: "member",
+      role: "employee", // Default role: employee | manager | director | admin
+      managedDepartments: [], // For managers: list of department IDs they manage
       status: "online",
       lastSeen: serverTimestamp(),
       createdAt: serverTimestamp(),

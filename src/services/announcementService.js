@@ -23,9 +23,10 @@ export const createAnnouncement = async (creatorId, creatorName, data) => {
       title: data.title,
       content: data.content,
       priority: data.priority || "normal", // normal | urgent
+      scope: data.scope || "department", // department | company
       createdBy: creatorId,
       createdByName: creatorName,
-      targetDepartments: data.targetDepartments || [], // Empty = all
+      targetDepartments: data.targetDepartments || [], // Empty = all (company-wide)
       readBy: [],
       createdAt: serverTimestamp(),
     };
@@ -150,12 +151,13 @@ export const getUnreadCount = (announcements, userId, userDepartment) => {
 // Get announcements for user's department
 export const getUserAnnouncements = (announcements, userDepartment) => {
   return announcements.filter((announcement) => {
+    // Company-wide announcements (scope = "company" or empty targetDepartments)
+    if (announcement.scope === "company" || (announcement.targetDepartments || []).length === 0) {
+      return true;
+    }
+
+    // Department-specific announcements
     const targets = announcement.targetDepartments || [];
-
-    // No target = for everyone
-    if (targets.length === 0) return true;
-
-    // Check if user's department is in targets
     return targets.includes(userDepartment);
   });
 };

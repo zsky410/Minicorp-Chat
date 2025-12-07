@@ -19,6 +19,7 @@ import {
   getUnreadCount,
   markAnnouncementAsRead,
 } from "../../services/announcementService";
+import { canCreateCompanyAnnouncement, canCreateAnnouncement } from "../../services/permissionService";
 import AnnouncementCard from "../../components/AnnouncementCard";
 import LoadingScreen from "../../components/LoadingScreen";
 import EmptyState from "../../components/EmptyState";
@@ -35,6 +36,9 @@ export default function NotificationsScreen({ navigation }) {
   // Detail modal
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+
+  const canCreateCompany = canCreateCompanyAnnouncement(user);
+  const canCreateDept = canCreateAnnouncement(user, user?.department);
 
   useEffect(() => {
     if (!user?.uid || !user?.department) {
@@ -180,8 +184,8 @@ export default function NotificationsScreen({ navigation }) {
         }
       />
 
-      {/* FAB for Admin */}
-      {user?.role === "admin" && (
+      {/* FAB for Admin/Manager/Director */}
+      {(canCreateCompany || canCreateDept) && (
         <TouchableOpacity style={styles.fab} onPress={handleCreateAnnouncement}>
           <Ionicons name="add" size={30} color="#fff" />
         </TouchableOpacity>
