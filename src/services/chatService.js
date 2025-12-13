@@ -420,6 +420,11 @@ export const subscribeToTyping = (conversationId, callback) => {
     return onSnapshot(
       conversationRef,
       (docSnapshot) => {
+        // Check if user is still authenticated
+        if (!auth.currentUser) {
+          return; // User has logged out, ignore
+        }
+
         if (docSnapshot.exists()) {
           const typing = docSnapshot.data().typing || {};
           // Check if typing is recent (within last 3 seconds)
@@ -439,6 +444,11 @@ export const subscribeToTyping = (conversationId, callback) => {
         }
       },
       (error) => {
+        // Ignore permission errors when user is logged out
+        if (error.code === 'permission-denied' && !auth.currentUser) {
+          // User has logged out, this is expected
+          return;
+        }
         console.error("Error subscribing to typing:", error);
       }
     );

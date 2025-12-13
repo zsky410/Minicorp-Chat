@@ -123,15 +123,18 @@ export default function ChatScreen({ route, navigation }) {
 
   // Subscribe to typing status
   useEffect(() => {
-    if (!conversationId || !otherUserId) return;
+    if (!conversationId || !otherUserId || !user?.uid) return;
 
     const unsubscribe = subscribeToTyping(conversationId, (typingStatus) => {
+      // Check if user is still authenticated
+      if (!user?.uid) return;
+
       const otherUserTyping = typingStatus[otherUserId] || false;
       setIsOtherUserTyping(otherUserTyping);
     });
 
     return () => unsubscribe();
-  }, [conversationId, otherUserId]);
+  }, [conversationId, otherUserId, user?.uid]);
 
   const handleSend = async (text) => {
     if (!text.trim() || !user?.uid) return;

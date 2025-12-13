@@ -64,6 +64,12 @@ web/node_modules/
 # Firebase config (chứa credentials)
 firebase.config.js
 serviceAccountKey.json
+*firebase-adminsdk*.json
+firestore-export.json
+
+# Report và Backlog (không upload lên GitHub)
+report/
+backlog/
 
 # Misc
 *.log
